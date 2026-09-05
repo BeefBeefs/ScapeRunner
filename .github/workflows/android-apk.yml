@@ -52,6 +52,22 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
+          $required = @{
+            ANDROID_KEY_ALIAS = $env:ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD = $env:ANDROID_KEY_PASSWORD
+            ANDROID_KEYSTORE_PASSWORD = $env:ANDROID_KEYSTORE_PASSWORD
+          }
+          foreach ($entry in $required.GetEnumerator()) {
+            if ([string]::IsNullOrWhiteSpace($entry.Value)) {
+              throw "$($entry.Key) is not configured."
+            }
+          }
+
+          keytool -list -keystore "$env:ANDROID_KEYSTORE_PATH" `
+            -storepass "$env:ANDROID_KEYSTORE_PASSWORD" `
+            -alias "$env:ANDROID_KEY_ALIAS" `
+            -noprompt
+
           dotnet publish OSRSIdle/OSRSIdle.csproj `
             --configuration Release `
             --framework net10.0-android `
