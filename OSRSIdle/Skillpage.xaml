@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="OSRSIdle.SkillPage">
+
+    <ScrollView>
+
+        <VerticalStackLayout
+            Padding="12"
+            Spacing="8">
+
+            <!-- SKILL HEADER -->
+
+            <HorizontalStackLayout
+                HorizontalOptions="Center"
+                Spacing="7">
+
+                <Image
+                    x:Name="SkillIcon"
+                    WidthRequest="24"
+                    HeightRequest="24"
+                    Aspect="AspectFit" />
+
+                <Label
+                    x:Name="SkillTitle"
+                    FontSize="26"
+                    FontAttributes="Bold"
+                    TextColor="#FFE26A"
+                    TranslationY="3" />
+
+            </HorizontalStackLayout>
+
+            <Label
+                x:Name="SkillLevel"
+                FontSize="18"
+                HorizontalOptions="Center" />
+
+            <Label
+                x:Name="SkillXP"
+                FontSize="15"
+                HorizontalOptions="Center" />
+
+            <!-- ACTIVITIES -->
+
+            <Label
+                Text="ACTIVITIES"
+                FontSize="19"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                Margin="0,8,0,0" />
+
+            <VerticalStackLayout
+                x:Name="ActivityList"
+                Spacing="6" />
+
+        </VerticalStackLayout>
+
+    </ScrollView>
+
+</ContentView>

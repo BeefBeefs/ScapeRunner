@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    x:Class="OSRSIdle.InventoryView">
+
+    <Grid
+        RowDefinitions="Auto,Auto,Auto,Auto,*"
+        RowSpacing="8">
+
+        <Image
+            Source="background_inventory.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True"
+            Grid.RowSpan="5" />
+
+        <!-- ================================================= -->
+        <!-- TITLE                                             -->
+        <!-- ================================================= -->
+
+        <Label
+            Grid.Row="0"
+            Text="INVENTORY"
+            FontSize="28"
+            FontAttributes="Bold"
+            TextColor="#FFE26A"
+            HorizontalOptions="Center" />
+
+
+        <!-- ================================================= -->
+        <!-- CATEGORY TABS                                     -->
+        <!-- ================================================= -->
+
+        <Border
+            Grid.Row="1"
+            Style="{StaticResource GamePanelBorder}">
+
+            <Grid
+                ColumnDefinitions="*,*,*"
+                ColumnSpacing="5">
+
+                <local:GoldSliceButton
+                    Grid.Column="0"
+                    x:Name="EquipmentTabButton"
+                    Text="Equipment"
+                    FontSize="14"
+                    Variant="Green"
+                    TextColor="White"
+                    Clicked="OnEquipmentTabClicked" />
+
+                <local:GoldSliceButton
+                    Grid.Column="1"
+                    x:Name="FoodTabButton"
+                    Text="Food"
+                    FontSize="14"
+                    Variant="Neutral"
+                    TextColor="White"
+                    Clicked="OnFoodTabClicked" />
+
+                <local:GoldSliceButton
+                    Grid.Column="2"
+                    x:Name="JunkTabButton"
+                    Text="Junk"
+                    FontSize="14"
+                    Variant="Neutral"
+                    TextColor="White"
+                    Clicked="OnJunkTabClicked" />
+
+            </Grid>
+
+        </Border>
+
+
+        <!-- ================================================= -->
+        <!-- INVENTORY CAPACITY                                -->
+        <!-- ================================================= -->
+
+        <Border
+            Grid.Row="2"
+            Style="{StaticResource GamePanelBorder}">
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+
+                <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                    <Label
+                        x:Name="InventoryCapacityLabel"
+                        FontSize="15"
+                        FontAttributes="Bold" />
+                    <Label
+                        x:Name="InventoryCapacityHintLabel"
+                        FontSize="12"
+                        TextColor="#D99032" />
+                </VerticalStackLayout>
+
+                <local:GoldSliceButton
+                    Grid.Column="1"
+                    x:Name="BuyInventorySlotButton"
+                    FontSize="13"
+                    Variant="Green"
+                    TextColor="White"
+                    Clicked="OnBuyInventorySlotClicked" />
+
+            </Grid>
+
+        </Border>
+
+
+        <!-- ================================================= -->
+        <!-- SORT CONTROLS                                     -->
+        <!-- ================================================= -->
+
+        <Border
+            Grid.Row="3"
+            Style="{StaticResource GamePanelBorder}">
+
+            <VerticalStackLayout Spacing="5">
+
+            <Label
+                Text="Sort Inventory"
+                FontSize="14"
+                FontAttributes="Bold"
+                HorizontalOptions="Center" />
+
+            <Grid
+                ColumnDefinitions="*,*,*"
+                ColumnSpacing="4">
+
+                <local:GoldSliceButton
+                    Grid.Column="0"
+                    x:Name="SortNameButton"
+                    Text="Name"
+                    FontSize="13"
+                    Variant="Neutral"
+                    TextColor="White"
+                    Clicked="OnSortNameClicked" />
+
+                <local:GoldSliceButton
+                    Grid.Column="1"
+                    x:Name="SortQuantityButton"
+                    Text="Quantity"
+                    FontSize="13"
+                    Variant="Neutral"
+                    TextColor="White"
+                    Clicked="OnSortQuantityClicked" />
+
+                <local:GoldSliceButton
+                    Grid.Column="2"
+                    x:Name="SortValueButton"
+                    Text="Gold Value"
+                    FontSize="13"
+                    Variant="Neutral"
+                    TextColor="White"
+                    Clicked="OnSortValueClicked" />
+
+            </Grid>
+
+            <local:GoldSliceButton
+                x:Name="SortDirectionButton"
+                Text="⬆ Ascending"
+                FontSize="13"
+                Variant="Neutral"
+                TextColor="White"
+                Clicked="OnSortDirectionClicked" />
+
+            <local:GoldSliceButton
+                x:Name="SellJunkButton"
+                Text="Sell Junk"
+                FontSize="13"
+                Variant="Green"
+                TextColor="White"
+                Clicked="OnSellJunkClicked"
+                IsVisible="False" />
+
+            </VerticalStackLayout>
+
+        </Border>
+
+
+        <!-- ================================================= -->
+        <!-- SCROLLABLE INVENTORY                              -->
+        <!-- ================================================= -->
+
+        <ScrollView
+            Grid.Row="4"
+            VerticalScrollBarVisibility="Always">
+
+            <Grid
+                x:Name="InventoryGrid"
+                ColumnDefinitions="*,*,*,*"
+                RowSpacing="5"
+                ColumnSpacing="5"
+                HorizontalOptions="Center" />
+
+        </ScrollView>
+
+    </Grid>
+
+</ContentView>

@@ -1,0 +1,17 @@
+# Build outputs and intermediate files
+**/bin/
+**/obj/
+
+# IDE and user-specific files
+.vs/
+**/*.csproj.user
+
+# Signing credentials and certificates
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Local publishing output
+artifacts/
+

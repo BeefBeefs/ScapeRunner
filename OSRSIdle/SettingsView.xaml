@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="OSRSIdle.SettingsView">
+
+    <Grid>
+
+        <Image
+            Source="background_settings.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True" />
+
+    <Border
+        Style="{StaticResource GamePanelBorder}"
+        Margin="12">
+
+        <VerticalStackLayout Spacing="8">
+
+        <Label
+            Text="SETTINGS"
+            FontSize="28"
+            HorizontalOptions="Center" />
+
+        <Label
+            Text="Game settings will appear here."
+            FontSize="16"
+            HorizontalOptions="Center" />
+
+        </VerticalStackLayout>
+
+    </Border>
+
+    </Grid>
+
+</ContentView>

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="OSRSIdle.CollectionLogView">
+
+    <Grid>
+
+        <Image
+            Source="background_collection.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True" />
+
+    <ScrollView
+        x:Name="CollectionScrollView">
+
+        <VerticalStackLayout
+            Padding="12"
+            Spacing="8">
+
+            <Label
+                Text="COLLECTION LOG"
+                FontSize="26"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+            <Label
+                Text="Defeat enemies and obtain every unique drop to complete their collection."
+                FontSize="14"
+                HorizontalTextAlignment="Center" />
+
+            <HorizontalStackLayout
+                Spacing="8"
+                VerticalOptions="Center">
+
+                <Label
+                    Text="Hide completed"
+                    FontSize="14"
+                    VerticalOptions="Center" />
+
+                <Switch
+                    x:Name="HideCompletedSwitch"
+                    Toggled="OnHideCompletedToggled"
+                    HorizontalOptions="End"
+                    VerticalOptions="Center" />
+
+            </HorizontalStackLayout>
+
+            <Label
+                Text="SKILLING PETS"
+                FontSize="18"
+                FontAttributes="Bold" />
+
+            <Border
+                Padding="10"
+                BackgroundColor="#E64A4A4A"
+                Stroke="#D99032"
+                StrokeThickness="2"
+                VerticalOptions="Start">
+
+                <VerticalStackLayout
+                    x:Name="SkillingPetList"
+                    Spacing="6" />
+
+            </Border>
+
+            <Label
+                Text="ENEMY COLLECTIONS"
+                FontSize="18"
+                FontAttributes="Bold" />
+
+            <Border
+                Style="{StaticResource GamePanelBorder}"
+                x:Name="EnemyDetailCard"
+                IsVisible="False">
+
+                <VerticalStackLayout
+                    Spacing="5">
+
+                    <Border
+                        Stroke="#D99032"
+                        StrokeThickness="1"
+                        Padding="6">
+
+                    <VerticalStackLayout
+                        Spacing="4">
+
+                    <Border
+                        WidthRequest="200"
+                        HeightRequest="200"
+                        MinimumWidthRequest="200"
+                        MaximumWidthRequest="200"
+                        MinimumHeightRequest="200"
+                        MaximumHeightRequest="200"
+                        Padding="2"
+                        Stroke="#D99032"
+                        StrokeThickness="2"
+                        BackgroundColor="#303030"
+                        HorizontalOptions="Center">
+
+                        <Image
+                            x:Name="EnemyDetailIcon"
+                            WidthRequest="192"
+                            HeightRequest="192"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Aspect="AspectFit">
+
+                            <Image.Clip>
+                                <RectangleGeometry Rect="0,0,192,192" />
+                            </Image.Clip>
+
+                        </Image>
+
+                    </Border>
+
+                    <Label
+                        x:Name="EnemyDetailDescriptionLabel"
+                        FontSize="14"
+                        TextColor="#FFE26A"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        MaximumWidthRequest="320" />
+
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center">
+
+                        <Label
+                            x:Name="EnemyDetailNameLabel"
+                            FontSize="20"
+                            FontAttributes="Bold"
+                            VerticalOptions="Center"
+                            TranslationY="1" />
+
+                        <Label
+                            x:Name="EnemyDetailCombatLevelLabel"
+                            FontSize="14"
+                            TextColor="#FFE26A"
+                            VerticalOptions="Center"
+                            TranslationY="1" />
+
+                    </HorizontalStackLayout>
+
+                    <Label
+                        x:Name="EnemyStatsLabel"
+                        FontSize="14"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        TranslationY="1" />
+
+                    </VerticalStackLayout>
+
+                    </Border>
+
+                    <Label
+                        Text="DROPS"
+                        FontSize="16"
+                        FontAttributes="Bold" />
+
+                    <VerticalStackLayout
+                        x:Name="DropList"
+                        Spacing="5" />
+
+                </VerticalStackLayout>
+
+            </Border>
+
+            <VerticalStackLayout
+                x:Name="EnemyList"
+                Spacing="5" />
+
+        </VerticalStackLayout>
+
+    </ScrollView>
+
+    </Grid>
+
+</ContentView>

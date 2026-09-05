@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="OSRSIdle.StartupLoadingPage"
+    BackgroundColor="Black"
+    Shell.NavBarIsVisible="False">
+
+    <Grid>
+
+        <Label
+            Text="SCAPERUNNER"
+            FontFamily="RuneScapeBold"
+            FontSize="38"
+            FontAttributes="Bold"
+            TextColor="#FFE26A"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            TranslationY="-30">
+
+            <Label.Shadow>
+                <Shadow Brush="Black" Offset="1,1" Radius="2" Opacity="1" />
+            </Label.Shadow>
+
+        </Label>
+
+        <VerticalStackLayout
+            Margin="18,0,18,24"
+            Spacing="6"
+            VerticalOptions="End">
+
+            <Label
+                x:Name="LoadingStageLabel"
+                Text="Starting..."
+                FontSize="12"
+                TextColor="White"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center" />
+
+            <Border
+                Stroke="#D99032"
+                StrokeThickness="1"
+                Padding="1">
+
+                <Grid
+                    x:Name="LoadingProgressTrack"
+                    HeightRequest="8"
+                    BackgroundColor="DarkRed">
+
+                    <BoxView
+                        x:Name="LoadingProgressFill"
+                        BackgroundColor="Green"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Fill" />
+
+                </Grid>
+
+            </Border>
+
+            <Label
+                x:Name="LoadingPercentLabel"
+                Text="0%"
+                FontSize="10"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+        </VerticalStackLayout>
+
+    </Grid>
+
+</ContentPage>

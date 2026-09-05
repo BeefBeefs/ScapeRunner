@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<Shell
+    x:Class="OSRSIdle.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    BackgroundColor="#242424"
+    Shell.BackgroundColor="#242424"
+    Shell.ForegroundColor="White"
+    Shell.TitleColor="#2D7D46">
+
+    <ShellContent
+        x:Name="GameShellContent"
+        Title="Home"
+        ContentTemplate="{DataTemplate local:GamePage}"
+        Route="GamePage" />
+
+</Shell>

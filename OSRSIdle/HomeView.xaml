@@ -1,0 +1,817 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    x:Class="OSRSIdle.HomeView">
+
+    <Grid>
+
+        <Image
+            Source="background_home.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True" />
+
+    <ScrollView>
+
+        <VerticalStackLayout
+            Padding="12"
+            Spacing="12">
+
+            <!-- =================================================
+                 CHARACTER HEADER
+                 ================================================= -->
+
+            <Label
+                Text="CHARACTER"
+                FontSize="18"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+
+            <!-- =================================================
+                 CHARACTER IMAGE + COMBAT STATS
+                 ================================================= -->
+
+            <Grid
+                ColumnDefinitions="*,*"
+                ColumnSpacing="12"
+                VerticalOptions="Start">
+
+                <!-- CHARACTER IMAGE -->
+
+                <Border
+                    Style="{StaticResource GamePanelBorder}"
+                    Grid.Column="0"
+                    MinimumHeightRequest="230"
+                    WidthRequest="145"
+                    HorizontalOptions="Center">
+
+                    <VerticalStackLayout
+                        VerticalOptions="Center"
+                        HorizontalOptions="Center"
+                        Spacing="5">
+
+                        <Border
+                            Stroke="#D99032"
+                            StrokeThickness="2"
+                            BackgroundColor="#303030"
+                            Padding="2"
+                            WidthRequest="109"
+                            HeightRequest="109"
+                            HorizontalOptions="Center">
+
+                            <Image
+                                x:Name="CharacterPortraitImage"
+                                Aspect="Fill" />
+
+                        </Border>
+
+                        <Label
+                            x:Name="CharacterNameLabel"
+                            Text="Adventurer"
+                            FontSize="14"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="CharacterCombatLevelLabel"
+                            Text="Combat lvl 1"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="LuckiestDropLabel"
+                            Text="Luckiest drop: None yet"
+                            FontSize="10"
+                            TextColor="#FFE26A"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            MaximumWidthRequest="140" />
+
+                        <Label
+                            x:Name="TotalEnemiesKilledLabel"
+                            Text="Total enemies killed: 0"
+                            FontSize="10"
+                            TextColor="#FFE26A"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                        <Label
+                            x:Name="GlobalDropBoostLabel"
+                            Text="Global drop boost: 0%"
+                            FontSize="10"
+                            TextColor="#FFE26A"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+                     COMBAT STATS
+                     ================================================= -->
+
+                <Border
+                    x:Name="CombatStatsFrameContainer"
+                    Grid.Column="1"
+                    Padding="7"
+                    BackgroundColor="#E64A4A4A"
+                    Stroke="#D99032"
+                    StrokeThickness="2"
+                    VerticalOptions="Start">
+
+                    <VerticalStackLayout
+                        x:Name="CombatStatsContent"
+                        Padding="7"
+                        Spacing="3">
+
+                        <Label
+                            Text="COMBAT STATS"
+                            FontSize="16"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center" />
+
+
+                        <!-- =================================================
+                             HP
+                             ================================================= -->
+
+                        <HorizontalStackLayout Spacing="5">
+                            <Image Source="skill_hp.png" WidthRequest="24" HeightRequest="24" Aspect="AspectFit" />
+                            <Label x:Name="HPLabel" FontSize="15" VerticalOptions="Center" TranslationY="3" />
+                        </HorizontalStackLayout>
+
+                        <Grid
+                            x:Name="HPXPBar"
+                            HeightRequest="8"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="HPXPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Red" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        <Label
+                            x:Name="HPXPLabel"
+                            FontSize="12"
+                            HorizontalOptions="End" />
+
+
+                        <!-- =================================================
+                             ATTACK
+                             ================================================= -->
+
+                        <HorizontalStackLayout Spacing="5">
+                            <Image Source="skill_attack.png" WidthRequest="24" HeightRequest="24" Aspect="AspectFit" />
+                            <Label x:Name="AttackLabel" FontSize="15" VerticalOptions="Center" TranslationY="3" />
+                        </HorizontalStackLayout>
+
+                        <Grid
+                            x:Name="AttackXPBar"
+                            HeightRequest="8"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="AttackXPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Red" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        <Label
+                            x:Name="AttackXPLabel"
+                            FontSize="12"
+                            HorizontalOptions="End" />
+
+
+                        <!-- =================================================
+                             STRENGTH
+                             ================================================= -->
+
+                        <HorizontalStackLayout Spacing="5">
+                            <Image Source="skill_strength.png" WidthRequest="24" HeightRequest="24" Aspect="AspectFit" />
+                            <Label x:Name="StrengthLabel" FontSize="15" VerticalOptions="Center" TranslationY="3" />
+                        </HorizontalStackLayout>
+
+                        <Grid
+                            x:Name="StrengthXPBar"
+                            HeightRequest="8"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="StrengthXPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Red" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        <Label
+                            x:Name="StrengthXPLabel"
+                            FontSize="12"
+                            HorizontalOptions="End" />
+
+
+                        <!-- =================================================
+                             DEFENSE
+                             ================================================= -->
+
+                        <HorizontalStackLayout Spacing="5">
+                            <Image Source="skill_defense.png" WidthRequest="24" HeightRequest="24" Aspect="AspectFit" />
+                            <Label x:Name="DefenseLabel" FontSize="15" VerticalOptions="Center" TranslationY="3" />
+                        </HorizontalStackLayout>
+
+                        <Grid
+                            x:Name="DefenseXPBar"
+                            HeightRequest="8"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="DefenseXPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Red" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        <Label
+                            x:Name="DefenseXPLabel"
+                            FontSize="12"
+                            HorizontalOptions="End" />
+
+                        <Label
+                            x:Name="WeaponStatsLabel"
+                            FontSize="14"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+            </Grid>
+
+
+            <!-- =================================================
+                 EQUIPMENT
+                 ================================================= -->
+
+            <Label
+                Text="EQUIPMENT"
+                FontSize="18"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+            <Border
+                Stroke="#D99032"
+                StrokeThickness="2"
+                Padding="12,8"
+                BackgroundColor="#E64A4A4A"
+                HorizontalOptions="Center">
+
+                <VerticalStackLayout
+                    Spacing="1"
+                    HorizontalOptions="Center">
+
+                    <Label
+                        x:Name="MaxHitLabel"
+                        FontSize="14"
+                        FontFamily="RuneScapeBold"
+                        HorizontalOptions="Center" />
+
+                    <Label
+                        x:Name="TotalEquipmentStrengthLabel"
+                        FontSize="14"
+                        FontFamily="RuneScapeBold"
+                        HorizontalOptions="Center" />
+
+                    <Label
+                        x:Name="TotalEquipmentAttackLabel"
+                        FontSize="14"
+                        FontFamily="RuneScapeBold"
+                        HorizontalOptions="Center" />
+
+                    <Label
+                        x:Name="TotalEquipmentDefenseLabel"
+                        FontSize="14"
+                        FontFamily="RuneScapeBold"
+                        HorizontalOptions="Center" />
+
+                    <Label
+                        x:Name="TotalEquipmentHPLabel"
+                        FontSize="14"
+                        FontFamily="RuneScapeBold"
+                        HorizontalOptions="Center" />
+
+                </VerticalStackLayout>
+
+            </Border>
+
+            <Border
+                Stroke="#D99032"
+                StrokeThickness="2"
+                Padding="8,5"
+                BackgroundColor="#E64A4A4A">
+
+                <VerticalStackLayout Spacing="2">
+
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+
+                        <Label
+                            Text="Auto-eat at"
+                            FontSize="14"
+                            VerticalOptions="Center" />
+
+                        <Slider
+                            x:Name="AutoEatThresholdSlider"
+                            Grid.Column="1"
+                            Minimum="10"
+                            Maximum="90"
+                            Value="50"
+                            MinimumTrackColor="#2D7D46"
+                            MaximumTrackColor="#303030"
+                            ThumbColor="#D99032"
+                            ValueChanged="OnAutoEatThresholdChanged" />
+
+                        <Label
+                            x:Name="AutoEatThresholdLabel"
+                            Grid.Column="2"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            TextColor="#FFE26A"
+                            VerticalOptions="Center" />
+
+                    </Grid>
+
+                    <Label
+                        Text="Consumes at most one food every 4 combat ticks."
+                        FontSize="11"
+                        TextColor="#B8B8B8"
+                        HorizontalOptions="Center" />
+
+                </VerticalStackLayout>
+
+            </Border>
+
+            <Border
+                x:Name="EquipmentFrameContainer"
+                Padding="8"
+                Margin="0,4"
+                BackgroundColor="#E64A4A4A"
+                Stroke="#D99032"
+                StrokeThickness="2"
+                VerticalOptions="Start">
+
+            <Grid
+                x:Name="EquipmentGrid"
+                ColumnDefinitions="*,*,*"
+                RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                ColumnSpacing="6"
+                RowSpacing="6">
+
+
+                <!-- =================================================
+                     HELMET
+                     ================================================= -->
+
+                <Border
+                    x:Name="HeadSlot"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Head" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="HeadEmptySlotIcon" Source="empty_head.png" Aspect="AspectFit" />
+                            <Label x:Name="HeadIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Helmet"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="HeadNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+                     NECKLACE
+                     ================================================= -->
+
+                <Border
+                    x:Name="AmuletSlot"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Amulet" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="AmuletEmptySlotIcon" Source="empty_amulet.png" Aspect="AspectFit" />
+                            <Label x:Name="AmuletIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Necklace"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="AmuletNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+                     CHEST
+                     ================================================= -->
+
+                <Border
+                    x:Name="BodySlot"
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Body" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="BodyEmptySlotIcon" Source="empty_body.png" Aspect="AspectFit" />
+                            <Label x:Name="BodyIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Chest"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="BodyNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+                     RING
+                     ================================================= -->
+
+                <Border
+                    x:Name="RingSlot"
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Ring" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="RingEmptySlotIcon" Source="empty_ring.png" Aspect="AspectFit" />
+                            <Label x:Name="RingIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Ring"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="RingNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+                <!-- =================================================
+     MAIN HAND
+     ================================================= -->
+
+                <Border
+                    x:Name="WeaponSlot"
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer
+                            Tapped="OnEquipmentSlotTapped"
+                            CommandParameter="Weapon" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="WeaponEmptySlotIcon" Source="empty_weapon.png" Aspect="AspectFit" />
+                            <Label x:Name="WeaponIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Main Hand"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="WeaponNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+     LEGS
+     ================================================= -->
+
+                <Border
+                    x:Name="LegsSlot"
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Legs" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+        Spacing="2"
+        HorizontalOptions="Center"
+        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="LegsEmptySlotIcon" Source="empty_legs.png" Aspect="AspectFit" />
+                            <Label x:Name="LegsIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+            Text="Legs"
+            FontSize="13"
+            HorizontalOptions="Center" />
+
+                        <Label
+            x:Name="LegsNameLabel"
+            Text="Empty"
+            FontSize="12"
+            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+     OFFHAND
+     ================================================= -->
+
+                <Border
+                    x:Name="ShieldSlot"
+                    Grid.Row="2"
+                    Grid.Column="2"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Shield" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+        Spacing="2"
+        HorizontalOptions="Center"
+        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="ShieldEmptySlotIcon" Source="empty_shield.png" Aspect="AspectFit" />
+                            <Label x:Name="ShieldIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+            Text="Offhand"
+            FontSize="13"
+            HorizontalOptions="Center" />
+
+                        <Label
+            x:Name="ShieldNameLabel"
+            Text="Empty"
+            FontSize="12"
+            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+                     GLOVES
+                     ================================================= -->
+
+                <Border
+                    x:Name="GlovesSlot"
+                    Grid.Row="3"
+                    Grid.Column="0"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Gloves" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="GlovesEmptySlotIcon" Source="empty_gloves.png" Aspect="AspectFit" />
+                            <Label x:Name="GlovesIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Gloves"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="GlovesNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+
+                <!-- =================================================
+     BOOTS
+     ================================================= -->
+
+                <Border
+                    x:Name="BootsSlot"
+                    Grid.Row="3"
+                    Grid.Column="1"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Boots" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout
+        Spacing="2"
+        HorizontalOptions="Center"
+        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="BootsEmptySlotIcon" Source="empty_boots.png" Aspect="AspectFit" />
+                            <Label x:Name="BootsIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+            Text="Boots"
+            FontSize="13"
+            HorizontalOptions="Center" />
+
+                        <Label
+            x:Name="BootsNameLabel"
+            Text="Empty"
+            FontSize="12"
+            HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+                <Border
+                    x:Name="FoodSlot"
+                    Grid.Row="3"
+                    Grid.Column="2"
+                    Padding="6"
+                    StrokeThickness="1">
+
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnEquipmentSlotTapped" CommandParameter="Food" />
+                    </Border.GestureRecognizers>
+
+                   <VerticalStackLayout
+                        Spacing="2"
+                        HorizontalOptions="Center"
+                        InputTransparent="True">
+
+                        <Grid WidthRequest="32" HeightRequest="32" HorizontalOptions="Center">
+                            <Image x:Name="FoodEmptySlotIcon" Source="empty_food.png" Aspect="AspectFit" />
+                            <Label x:Name="FoodIconLabel" FontSize="25" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Label
+                            Text="Auto Food"
+                            FontSize="13"
+                            HorizontalOptions="Center" />
+
+                        <Label
+                            x:Name="FoodNameLabel"
+                            Text="Empty"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                    </VerticalStackLayout>
+
+                </Border>
+
+            </Grid>
+
+            </Border>
+
+            <local:GoldSliceButton
+                Text="Auto-Equip Best Gear"
+                FontSize="13"
+                TextColor="White"
+                MinimumHeightRequest="34"
+                Variant="Green"
+                Clicked="OnAutoEquipClicked" />
+
+        </VerticalStackLayout>
+
+    </ScrollView>
+
+    </Grid>
+
+</ContentView>

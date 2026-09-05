@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    x:Class="OSRSIdle.CombatView">
+
+    <Grid>
+
+        <Image
+            Source="background_combat.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True" />
+
+        <!-- Enemy selection screen -->
+        <ScrollView
+            x:Name="EnemySelectionView">
+
+            <VerticalStackLayout
+                Padding="12"
+                Spacing="10">
+
+                <Label
+                    Text="COMBAT"
+                    FontSize="28"
+                    FontAttributes="Bold"
+                    TextColor="#FFE26A"
+                    HorizontalOptions="Center" />
+
+                <Label
+                    Text="Choose an enemy to fight."
+                    FontSize="15"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center" />
+
+                <Border Style="{StaticResource GamePanelBorder}">
+
+                    <VerticalStackLayout
+                        x:Name="EnemyContainer"
+                        Spacing="8" />
+
+                </Border>
+
+            </VerticalStackLayout>
+
+        </ScrollView>
+
+
+        <!-- Active combat screen -->
+        <Grid
+            x:Name="CombatViewLayout"
+            IsVisible="False">
+
+            <ScrollView>
+
+                <VerticalStackLayout
+                    Padding="12"
+                    Spacing="10">
+
+                    <!-- Enemy -->
+
+                    <Border Style="{StaticResource GamePanelBorder}">
+
+                        <VerticalStackLayout
+                            x:Name="EnemyPanel"
+                            Spacing="5">
+
+                        <Label
+                            x:Name="EnemyNameLabel"
+                            FontSize="22"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                        <HorizontalStackLayout
+                            Spacing="8"
+                            HorizontalOptions="Center">
+
+                            <Border
+                                x:Name="EnemyPortraitFrame"
+                                Stroke="#D99032"
+                                StrokeThickness="2"
+                                BackgroundColor="#303030"
+                                Padding="4"
+                                WidthRequest="140"
+                                HeightRequest="140">
+
+                                <Grid>
+
+                                    <Image
+                                        x:Name="EnemyIcon"
+                                        WidthRequest="128"
+                                        HeightRequest="128"
+                                        Aspect="AspectFit" />
+
+                                    <Grid
+                                        x:Name="EnemyHitSplatLayer"
+                                        InputTransparent="True" />
+
+                                </Grid>
+
+                            </Border>
+
+                            <ContentView
+                                x:Name="ActiveEnemyDropsHost"
+                                WidthRequest="140"
+                                HeightRequest="140" />
+
+                        </HorizontalStackLayout>
+
+                        <Label
+                            x:Name="EnemyDescriptionLabel"
+                            FontSize="11"
+                            TextColor="#FFE26A"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            MaximumWidthRequest="320" />
+
+                        <Label
+                            x:Name="EnemyCombatStatsLabel"
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                        <Border
+                            Stroke="#D99032"
+                            StrokeThickness="1"
+                            Padding="6,2"
+                            HorizontalOptions="Center">
+
+                            <Label
+                                x:Name="EnemyKillCountLabel"
+                                Text="Kills: 0"
+                                FontSize="14"
+                                HorizontalOptions="Center" />
+
+                        </Border>
+
+                        <Grid
+                            x:Name="EnemyHPBar"
+                            HeightRequest="24"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="EnemyDamageFill"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill"
+                                BackgroundColor="DarkRed"
+                                AnchorX="0" />
+
+                            <BoxView
+                                x:Name="EnemyHPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green"
+                                AnchorX="0" />
+
+                            <Label
+                                x:Name="EnemyHPLabel"
+                                Text="0 / 0"
+                                FontSize="14"
+                                FontAttributes="Bold"
+                                TextColor="White"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+
+                                <Label.Shadow>
+                                    <Shadow
+                                        Brush="Black"
+                                        Offset="0,0"
+                                        Radius="2"
+                                        Opacity="1" />
+                                </Label.Shadow>
+
+                            </Label>
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        </VerticalStackLayout>
+
+                    </Border>
+
+
+                    <!-- Enemy attack bar -->
+
+                    <VerticalStackLayout
+                        Spacing="2">
+
+                        <Label
+                            Text="Enemy Attack"
+                            FontSize="12"
+                            HorizontalOptions="Center" />
+
+                        <Grid
+                            x:Name="EnemyAttackBar"
+                            HeightRequest="8"
+                            BackgroundColor="DarkRed">
+
+                            <BoxView
+                                x:Name="EnemyAttackFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green" />
+
+                            <Border
+                                Stroke="#D99032"
+                                StrokeThickness="1"
+                                InputTransparent="True" />
+
+                        </Grid>
+
+                    </VerticalStackLayout>
+
+
+                    <!-- Combat status -->
+
+                    <Label
+                        x:Name="CombatStatusLabel"
+                        Text=""
+                        FontSize="15"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center" />
+
+
+                    <!-- Player -->
+
+                    <Border Style="{StaticResource GamePanelBorder}">
+
+                        <VerticalStackLayout
+                            Spacing="5">
+
+                        <Label
+                            x:Name="PlayerNameLabel"
+                            Text="Adventurer"
+                            FontSize="22"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center" />
+
+                        <Grid
+                            x:Name="PlayerHPBar"
+                            HeightRequest="24"
+                            BackgroundColor="Gray">
+
+                            <BoxView
+                                x:Name="PlayerDamageFill"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill"
+                                BackgroundColor="DarkRed"
+                                AnchorX="0" />
+
+                            <BoxView
+                                x:Name="PlayerHPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green"
+                                AnchorX="0" />
+
+                            <Label
+                                x:Name="PlayerHPLabel"
+                                Text="0 / 0"
+                                FontSize="14"
+                                FontAttributes="Bold"
+                                TextColor="White"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center">
+
+                                <Label.Shadow>
+                                    <Shadow
+                                        Brush="Black"
+                                        Offset="0,0"
+                                        Radius="2"
+                                        Opacity="1" />
+                                </Label.Shadow>
+
+                            </Label>
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                        </VerticalStackLayout>
+
+                    </Border>
+
+
+                    <!-- Player attack bar -->
+
+                    <VerticalStackLayout
+                        Spacing="2">
+
+                        <Label
+    x:Name="PlayerAttackLabel"
+    Text="Your Attack — 4 ticks (2.4s)"
+    FontSize="12"
+    HorizontalOptions="Center" />
+
+                        <Grid
+                            x:Name="PlayerAttackBar"
+                            HeightRequest="8"
+                            BackgroundColor="DarkRed">
+
+                            <BoxView
+                                x:Name="PlayerAttackFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green" />
+
+                            <Border
+                                Stroke="#D99032"
+                                StrokeThickness="1"
+                                InputTransparent="True" />
+
+                        </Grid>
+
+                    </VerticalStackLayout>
+
+
+                    <!-- Loot -->
+
+                    <Border
+                        Style="{StaticResource GamePanelBorder}"
+                        x:Name="LootResults"
+                        IsVisible="False">
+
+                        <VerticalStackLayout Spacing="3">
+
+                        <Label
+                            Text="Loot"
+                            FontSize="19"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center" />
+
+                        <Border
+                            Stroke="#D99032"
+                            StrokeThickness="1"
+                            Padding="5"
+                            HorizontalOptions="Center">
+
+                            <VerticalStackLayout
+                                x:Name="LootContainer"
+                                Spacing="3" />
+
+                        </Border>
+
+                        </VerticalStackLayout>
+
+                    </Border>
+
+
+                    <!-- Combat action buttons -->
+
+                    <Border Style="{StaticResource GamePanelBorder}">
+
+                        <VerticalStackLayout
+                            x:Name="AutoFightPanel"
+                            Spacing="3">
+
+                        <FlexLayout
+                            x:Name="CombatActionButtons"
+                            Direction="Row"
+                            Wrap="NoWrap"
+                            AlignItems="Stretch"
+                            JustifyContent="Center">
+
+                            <local:GoldSliceButton
+                                x:Name="StopCombatButton"
+                                Text="Run"
+                                FontSize="14"
+                                Variant="Red"
+                                TextColor="White"
+                                FlexLayout.Grow="1"
+                                FlexLayout.Basis="0"
+                                FlexLayout.Shrink="1"
+                                MinimumWidthRequest="0"
+                                HorizontalOptions="Fill"
+                                Clicked="OnStopCombatClicked" />
+
+                            <local:GoldSliceButton
+                                x:Name="FightAgainButton"
+                                Text="Fight Again"
+                                FontSize="14"
+                                Variant="Green"
+                                TextColor="White"
+                                IsVisible="False"
+                                FlexLayout.Grow="1"
+                                FlexLayout.Basis="0"
+                                FlexLayout.Shrink="1"
+                                MinimumWidthRequest="0"
+                                HorizontalOptions="Fill"
+                                Clicked="OnFightAgainClicked" />
+
+                            <local:GoldSliceButton
+                                x:Name="EnemySelectButton"
+                                Text="Enemy Select"
+                                FontSize="14"
+                                Variant="Neutral"
+                                TextColor="White"
+                                IsVisible="False"
+                                FlexLayout.Grow="1"
+                                FlexLayout.Basis="0"
+                                FlexLayout.Shrink="1"
+                                MinimumWidthRequest="0"
+                                HorizontalOptions="Fill"
+                                Clicked="OnEnemySelectClicked" />
+
+                        <Grid
+                            FlexLayout.Grow="1"
+                            FlexLayout.Basis="0"
+                            FlexLayout.Shrink="1"
+                            MinimumWidthRequest="0"
+                            HorizontalOptions="Fill">
+
+                            <local:GoldSliceButton
+                                x:Name="AutoFightButton"
+                                Text="Auto"
+                                FontSize="14"
+                                Variant="Neutral"
+                                TextColor="White"
+                                MinimumWidthRequest="0"
+                                HorizontalOptions="Fill"
+                                Clicked="OnAutoFightClicked" />
+
+                            <!-- Native state indicator: dark while idle, green when Auto is on. -->
+                            <Border
+                                x:Name="AutoFightIndicator"
+                                WidthRequest="18"
+                                HeightRequest="18"
+                                Margin="8,0,0,0"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Center"
+                                BackgroundColor="#404040"
+                                Stroke="#D99032"
+                                StrokeThickness="1"
+                                StrokeShape="Ellipse"
+                                InputTransparent="True" />
+
+                        </Grid>
+
+                        </FlexLayout>
+
+                        <Label
+                            x:Name="AutoFightStatusLabel"
+                            Text=""
+                            FontSize="12"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
+                        </VerticalStackLayout>
+
+                    </Border>
+
+                </VerticalStackLayout>
+
+            </ScrollView>
+
+
+            <!-- Damage popup layer -->
+
+            <Grid
+                x:Name="DamagePopupLayer"
+                InputTransparent="True" />
+
+        </Grid>
+
+    </Grid>
+
+</ContentView>

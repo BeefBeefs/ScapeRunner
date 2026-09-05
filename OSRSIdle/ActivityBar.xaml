@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    x:Class="OSRSIdle.ActivityBar">
+
+    <Border
+        Style="{StaticResource GamePanelBorder}"
+        Padding="8"
+        Margin="5,2">
+
+        <VerticalStackLayout
+            Spacing="3">
+
+            <!-- ================================================= -->
+            <!-- NORMAL ACTIVITY DISPLAY -->
+            <!-- ================================================= -->
+
+            <Label
+                x:Name="ActivityTitle"
+                Text="CURRENT ACTIVITY"
+                FontSize="11"
+                FontAttributes="Bold" />
+
+            <Grid
+                x:Name="ActivityNameRow"
+                ColumnDefinitions="*,Auto">
+
+                <Label
+                    x:Name="ActivityName"
+                    Text="No activity"
+                    FontSize="15"
+                    FontAttributes="Bold"
+                    VerticalOptions="Center" />
+
+                <local:GoldSliceButton
+                    Grid.Column="1"
+                    x:Name="SkillStopButton"
+                    Text="STOP"
+                    Clicked="OnStopClicked"
+                    IsVisible="False"
+                    Variant="Red"
+                    TextColor="White"
+                    MinimumHeightRequest="32"
+                    MinimumWidthRequest="58"
+                    FontSize="12" />
+
+            </Grid>
+
+            <Grid
+                x:Name="CombatStatusRows"
+                ColumnDefinitions="*,Auto"
+                IsVisible="False">
+
+                <Grid
+                    x:Name="CombatMiniHPBars"
+                    Grid.Column="0"
+                    ColumnDefinitions="Auto,*"
+                    HorizontalOptions="Fill"
+                    ColumnSpacing="8">
+
+                    <Label
+                        x:Name="EnemyMiniNameLabel"
+                        Grid.Column="0"
+                        WidthRequest="104"
+                        FontSize="12"
+                        FontAttributes="Bold"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        VerticalOptions="Center"
+                        VerticalTextAlignment="Center" />
+
+                    <VerticalStackLayout
+                        Grid.Column="1"
+                        HorizontalOptions="Fill"
+                        Spacing="2">
+
+                    <Grid
+                        ColumnDefinitions="68,*"
+                        ColumnSpacing="5">
+
+                        <Label
+                            x:Name="PlayerMiniHPLabel"
+                            Text="Your HP"
+                            FontSize="11"
+                            FontAttributes="Bold"
+                            VerticalOptions="Center"
+                            Grid.Column="0" />
+
+                        <Grid
+                            x:Name="PlayerMiniHPBar"
+                            Grid.Column="1"
+                            HeightRequest="18"
+                            Margin="0,0,32,0"
+                            HorizontalOptions="Fill"
+                            BackgroundColor="DarkRed">
+
+                            <BoxView
+                                x:Name="PlayerMiniHPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green" />
+
+                            <Label
+                                x:Name="PlayerMiniHPValueLabel"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                TextColor="White"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                HorizontalTextAlignment="Center"
+                                VerticalTextAlignment="Center" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                    </Grid>
+
+                    <Grid
+                        ColumnDefinitions="68,*"
+                        ColumnSpacing="5">
+
+                        <Label
+                            x:Name="EnemyMiniHPLabel"
+                            Text="Enemy HP"
+                            FontSize="11"
+                            FontAttributes="Bold"
+                            VerticalOptions="Center"
+                            Grid.Column="0" />
+
+                        <Grid
+                            x:Name="EnemyMiniHPBar"
+                            Grid.Column="1"
+                            HeightRequest="18"
+                            Margin="0,0,32,0"
+                            HorizontalOptions="Fill"
+                            BackgroundColor="DarkRed">
+
+                            <BoxView
+                                x:Name="EnemyMiniHPFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Green" />
+
+                            <Label
+                                x:Name="EnemyMiniHPValueLabel"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                TextColor="White"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                HorizontalTextAlignment="Center"
+                                VerticalTextAlignment="Center" />
+
+                            <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                        </Grid>
+
+                    </Grid>
+
+                    </VerticalStackLayout>
+
+                </Grid>
+
+                <local:GoldSliceButton
+                    x:Name="StopButton"
+                    Grid.Column="1"
+                    HorizontalOptions="End"
+                    VerticalOptions="Center"
+                    Text="Run"
+                    FontSize="12"
+                    Variant="Red"
+                    TextColor="White"
+                    IsVisible="False"
+                    MinimumHeightRequest="32"
+                    MinimumWidthRequest="58"
+                    Clicked="OnStopClicked" />
+
+            </Grid>
+
+            <Label
+                x:Name="AutoFightLootLabel"
+                FontSize="12"
+                LineBreakMode="WordWrap"
+                IsVisible="False" />
+
+            <Grid
+                x:Name="ActivityProgressBar"
+                HeightRequest="8"
+                BackgroundColor="DarkRed">
+
+                <BoxView
+                    x:Name="ActivityProgressFill"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Fill"
+                    BackgroundColor="Red" />
+
+                <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+            </Grid>
+
+            <Label
+                x:Name="ActivityTime"
+                Text=""
+                FontSize="12" />
+
+
+            <!-- ================================================= -->
+            <!-- COMBAT STYLE CONTROLS -->
+            <!-- ================================================= -->
+
+            <VerticalStackLayout
+                x:Name="CombatStylePanel"
+                Spacing="2"
+                IsVisible="False">
+
+                <Grid
+                    ColumnDefinitions="*,*,*"
+                    ColumnSpacing="5">
+
+                    <local:GoldSliceButton
+                        x:Name="AttackStyleButton"
+                        Text="Attack"
+                        IconSource="skill_attack.png"
+                        IconSize="20"
+                        CenterText="True"
+                        Grid.Column="0"
+                        Clicked="OnAttackStyleClicked"
+                        MinimumHeightRequest="32"
+                        FontSize="12" />
+
+                    <local:GoldSliceButton
+                        x:Name="StrengthStyleButton"
+                        Text="Strength"
+                        IconSource="skill_strength.png"
+                        IconSize="20"
+                        CenterText="True"
+                        Grid.Column="1"
+                        Clicked="OnStrengthStyleClicked"
+                        MinimumHeightRequest="32"
+                        FontSize="12" />
+
+                    <local:GoldSliceButton
+                        x:Name="DefenseStyleButton"
+                        Text="Defense"
+                        IconSource="skill_defense.png"
+                        IconSize="20"
+                        CenterText="True"
+                        Grid.Column="2"
+                        Clicked="OnDefenseStyleClicked"
+                        MinimumHeightRequest="32"
+                        FontSize="12" />
+
+                </Grid>
+
+
+                <Grid
+                    ColumnDefinitions="*">
+
+                    <Label
+                        x:Name="CombatXPLabel"
+                        Text="Attack XP"
+                        FontSize="12"
+                        FontAttributes="Bold"
+                        VerticalOptions="Center"
+                        TranslationY="3" />
+
+                </Grid>
+
+                <Grid
+                    x:Name="CombatXPBar"
+                    HeightRequest="8"
+                    BackgroundColor="DarkRed">
+
+                    <BoxView
+                        x:Name="CombatXPFill"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Fill"
+                        BackgroundColor="Red" />
+
+                    <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
+
+                </Grid>
+
+                <Label
+                    x:Name="CombatXPAmountLabel"
+                    Text="0 / 0 XP"
+                    FontSize="11"
+                    FontAttributes="Bold"
+                    TextColor="White"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center"
+                    TranslationY="1">
+
+                    <Label.Shadow>
+                        <Shadow
+                            Brush="Black"
+                            Offset="0,0"
+                            Radius="1"
+                            Opacity="1" />
+                    </Label.Shadow>
+
+                </Label>
+
+            </VerticalStackLayout>
+
+        </VerticalStackLayout>
+
+    </Border>
+
+</ContentView>

@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
+    x:Class="OSRSIdle.LandingPage"
+    BackgroundColor="#242424">
+
+    <Grid>
+
+    <Image
+        Source="title.png"
+        Aspect="Fill"
+        InputTransparent="True" />
+
+    <local:FireflyView
+        x:Name="FireflyLayer"
+        InputTransparent="True" />
+
+    <ScrollView>
+
+        <VerticalStackLayout
+            Padding="18"
+            Spacing="10"
+            VerticalOptions="Center">
+
+            <Label
+                Text="SCAPERUNNER"
+                FontSize="46"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+            <Label
+                Text="Your idle adventure awaits"
+                FontSize="16"
+                HorizontalOptions="Center" />
+
+            <Border
+                Style="{StaticResource GamePanelBorder}"
+                Margin="0,8"
+                HorizontalOptions="Center"
+                WidthRequest="330">
+
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCharacterTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="10">
+
+                    <Grid
+                        ColumnDefinitions="48,109,48"
+                        WidthRequest="220"
+                        HorizontalOptions="Center">
+
+                        <ImageButton
+                            Grid.Column="0"
+                            Source="portrait_arrow_left.png"
+                            BackgroundColor="Transparent"
+                            WidthRequest="48"
+                            HeightRequest="48"
+                            Padding="8"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Clicked="OnPreviousPortraitClicked" />
+
+                        <Border
+                            Grid.Column="1"
+                            Stroke="#D99032"
+                            StrokeThickness="2"
+                            BackgroundColor="#303030"
+                            Padding="2"
+                            WidthRequest="109"
+                            HeightRequest="109">
+
+                            <Image
+                                x:Name="CharacterPortraitImage"
+                                Aspect="Fill" />
+
+                        </Border>
+
+                        <ImageButton
+                            Grid.Column="2"
+                            Source="portrait_arrow_right.png"
+                            BackgroundColor="Transparent"
+                            WidthRequest="48"
+                            HeightRequest="48"
+                            Padding="8"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Clicked="OnNextPortraitClicked" />
+
+                    </Grid>
+
+                    <Label
+                        x:Name="CharacterNameLabel"
+                        Text="ADVENTURER"
+                        FontSize="20"
+                        FontAttributes="Bold"
+                        TextColor="#D99032"
+                        HorizontalOptions="Center" />
+
+                    <BoxView HeightRequest="1" BackgroundColor="#D99032" />
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Text="Skill Total" FontSize="16" />
+                        <Label
+                            x:Name="SkillTotalLabel"
+                            Grid.Column="1"
+                            FontSize="16"
+                            FontAttributes="Bold" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Text="Total Kills" FontSize="16" />
+                        <Label
+                            x:Name="TotalKillsLabel"
+                            Grid.Column="1"
+                            FontSize="16"
+                            FontAttributes="Bold" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Text="Collection Log" FontSize="16" />
+                        <Label
+                            x:Name="CollectionLogLabel"
+                            Grid.Column="1"
+                            FontSize="16"
+                            FontAttributes="Bold" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Text="Activity" FontSize="16" />
+                        <Label
+                            x:Name="LastActivityLabel"
+                            Grid.Column="1"
+                            FontSize="16"
+                            FontAttributes="Bold" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Text="Offline Ticks" FontSize="16" />
+                        <Label
+                            x:Name="OfflineTicksLabel"
+                            Grid.Column="1"
+                            FontSize="16"
+                            FontAttributes="Bold"
+                            TextColor="#FFE26A" />
+                    </Grid>
+
+                    <Label
+                        Text="Tap your character to play"
+                        FontSize="14"
+                        TextColor="#FFE26A"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Margin="0,8,0,0" />
+
+                </VerticalStackLayout>
+
+            </Border>
+
+            <local:GoldSliceButton
+                x:Name="ChangeNameButton"
+                Text="Change Character Name"
+                Variant="Neutral"
+                TextColor="White"
+                HorizontalOptions="Center"
+                Clicked="OnToggleRenameClicked" />
+
+            <Border
+                x:Name="RenamePanel"
+                Style="{StaticResource GamePanelBorder}"
+                HorizontalOptions="Center"
+                WidthRequest="330"
+                IsVisible="False">
+
+                <VerticalStackLayout Spacing="8">
+
+                    <Label
+                        Text="CHARACTER NAME"
+                        FontSize="16"
+                        FontAttributes="Bold" />
+
+                    <Entry
+                        x:Name="CharacterNameEntry"
+                        Placeholder="Character name"
+                        MaxLength="24" />
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <local:GoldSliceButton
+                            Text="Cancel"
+                            Variant="Neutral"
+                            TextColor="White"
+                            Clicked="OnCancelRenameClicked" />
+
+                        <local:GoldSliceButton
+                            Grid.Column="1"
+                            Text="Save Name"
+                            Variant="Green"
+                            TextColor="White"
+                            Clicked="OnSaveNameClicked" />
+                    </Grid>
+
+                </VerticalStackLayout>
+
+            </Border>
+
+            <local:GoldSliceButton
+                Text="Reset Progress"
+                Variant="Red"
+                TextColor="White"
+                HorizontalOptions="Center"
+                WidthRequest="330"
+                Clicked="OnResetProgressClicked" />
+
+        </VerticalStackLayout>
+
+    </ScrollView>
+
+        <Grid
+            x:Name="ResetConfirmationOverlay"
+            BackgroundColor="#D0000000"
+            IsVisible="False"
+            InputTransparent="False">
+
+            <Border
+                Style="{StaticResource GamePanelBorder}"
+                Margin="28"
+                VerticalOptions="Center">
+
+                <VerticalStackLayout Spacing="14">
+
+                    <Label
+                        x:Name="ResetConfirmationTitle"
+                        Text="RESET PROGRESS?"
+                        FontSize="23"
+                        FontAttributes="Bold"
+                        TextColor="#FFE26A"
+                        HorizontalOptions="Center" />
+
+                    <Label
+                        x:Name="ResetConfirmationMessage"
+                        Text="This permanently deletes your character, inventory, collection log, and kill counts."
+                        FontSize="17"
+                        HorizontalTextAlignment="Center" />
+
+                    <HorizontalStackLayout
+                        Spacing="10"
+                        HorizontalOptions="Center">
+
+                        <local:GoldSliceButton
+                            Text="Cancel"
+                            Variant="Neutral"
+                            TextColor="White"
+                            Clicked="OnCancelResetClicked" />
+
+                        <local:GoldSliceButton
+                            x:Name="ResetConfirmationButton"
+                            Text="Continue"
+                            WidthRequest="150"
+                            FontSize="13"
+                            Variant="Red"
+                            TextColor="White"
+                            Clicked="OnConfirmResetClicked" />
+
+                    </HorizontalStackLayout>
+
+                </VerticalStackLayout>
+
+            </Border>
+
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<ContentView
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    x:Class="OSRSIdle.SkillsView">
+
+    <Grid>
+
+        <Image
+            Source="background_skills.png"
+            Aspect="AspectFill"
+            Opacity="0.72"
+            InputTransparent="True" />
+
+    <ScrollView>
+
+        <VerticalStackLayout
+            Padding="12"
+            Spacing="8">
+
+            <!-- ================================================= -->
+            <!-- HEADER                                            -->
+            <!-- ================================================= -->
+
+            <Label
+                Text="SKILLS"
+                FontSize="28"
+                FontAttributes="Bold"
+                TextColor="#FFE26A"
+                HorizontalOptions="Center" />
+
+            <!-- ================================================= -->
+            <!-- SKILL LIST                                        -->
+            <!-- ================================================= -->
+
+            <VerticalStackLayout
+                x:Name="SkillList"
+                Spacing="6" />
+
+        </VerticalStackLayout>
+
+    </ScrollView>
+
+    </Grid>
+
+</ContentView>
