@@ -32,6 +32,14 @@ jobs:
         shell: pwsh
         run: dotnet workload install maui-android
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('OSRSIdle/OSRSIdle.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Restore packages
         run: dotnet restore OSRSIdle/OSRSIdle.csproj
 
