@@ -10,8 +10,6 @@ public partial class CombatView : ContentView
     private List<EnemyDropVisual> _activeEnemyDropVisuals = new();
     private readonly Dictionary<EnemyTier, TierSectionState> _tierSections = new();
     private readonly Dictionary<Enemy, EnemyCardState> _enemyCardStates = new();
-    private static readonly Dictionary<string, ImageSource> TierImageSources =
-        new(StringComparer.OrdinalIgnoreCase);
     private int _areaNavigationGeneration;
     private bool _enemyListBuilt;
 
@@ -355,10 +353,10 @@ public partial class CombatView : ContentView
         };
         Image areaImage = new()
         {
-            // Tier art is sourced from an embedded stream instead of an
-            // Android drawable. See CreateTierImageSource for why.
-            Source = CreateTierImageSource(imageSource),
+            Source = imageSource,
             Aspect = Aspect.AspectFill,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
             ZIndex = 0,
             InputTransparent = true
         };
@@ -484,31 +482,6 @@ public partial class CombatView : ContentView
                 ("The Umbral Expanse", "Corrupted realm beneath the black sun.", "tier_umbral_expanse.png"),
             _ => (tier.ToString(), string.Empty, "tier_greenvale.png")
         };
-    }
-
-    private static ImageSource CreateTierImageSource(string imageSource)
-    {
-        lock (TierImageSources)
-        {
-            if (TierImageSources.TryGetValue(imageSource, out ImageSource? source))
-                return source;
-
-            string resourceName =
-                $"OSRSIdle.Resources.Images.Backgrounds.{imageSource}";
-
-            // MauiImage uses Android's flattened drawable pipeline. That
-            // pipeline was the source of the gray fallbacks: it could not
-            // consistently resolve these dynamically-created banner images
-            // after the page was cached. Embedded resources retain their
-            // exact name and return a brand-new stream for each image decode.
-            source = ImageSource.FromStream(() =>
-                typeof(CombatView).Assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException(
-                    $"Missing embedded tier background: {resourceName}"));
-
-            TierImageSources.Add(imageSource, source);
-            return source;
-        }
     }
 
     private static string GetTierLevelRange(EnemyTier tier)

@@ -61,11 +61,6 @@
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\**\*" />
-		<!-- Area banners are loaded from embedded streams rather than Android
-		     drawables. See CombatView.CreateTierImageSource. -->
-		<MauiImage Remove="Resources\Images\Backgrounds\tier_*.png" />
-		<EmbeddedResource Include="Resources\Images\Backgrounds\tier_*.png"
-			LogicalName="OSRSIdle.Resources.Images.Backgrounds.%(Filename)%(Extension)" />
 		
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
