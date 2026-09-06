@@ -4,14 +4,19 @@ public partial class SettingsView : ContentView
 {
     private readonly Action _resetProgress;
     private readonly Action _returnToCharacterSelect;
+    private readonly Action _showTestNotification;
     private bool _updatingDebugSwitches;
     private int _resetConfirmationStep;
 
-    public SettingsView(Action resetProgress, Action returnToCharacterSelect)
+    public SettingsView(
+        Action resetProgress,
+        Action returnToCharacterSelect,
+        Action showTestNotification)
     {
         InitializeComponent();
         _resetProgress = resetProgress;
         _returnToCharacterSelect = returnToCharacterSelect;
+        _showTestNotification = showTestNotification;
 
         GameClock.SpeedChanged += OnDebugSettingsChanged;
         DebugSettings.Changed += OnDebugSettingsChanged;
@@ -77,6 +82,11 @@ public partial class SettingsView : ContentView
     private void OnReturnToCharacterSelectClicked(object? sender, EventArgs e)
     {
         _returnToCharacterSelect();
+    }
+
+    private void OnShowTestNotificationClicked(object? sender, EventArgs e)
+    {
+        _showTestNotification();
     }
 
     private void OnResetProgressClicked(object? sender, EventArgs e)

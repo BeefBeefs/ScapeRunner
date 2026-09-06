@@ -890,7 +890,8 @@ public partial class GamePage : ContentPage
     {
         _settingsView ??= new SettingsView(
             ResetCharacter,
-            ReturnToCharacterSelect);
+            ReturnToCharacterSelect,
+            ShowDebugNotification);
         GameContent.Content = _settingsView;
 
         UpdateNavigationAppearance(SettingsNavigationButton);
@@ -1290,6 +1291,72 @@ public partial class GamePage : ContentPage
     // LEVEL UP POPUP
     // ============================================================
 
+    private async void ShowDebugNotification()
+    {
+        Border popup =
+            new Border
+            {
+                BackgroundColor = Color.FromArgb("#1C1C1C"),
+                Stroke = Color.FromArgb("#FFE26A"),
+                StrokeThickness = 2,
+                StrokeShape =
+                    new Microsoft.Maui.Controls.Shapes.RoundRectangle
+                    {
+                        CornerRadius = 14
+                    },
+                Padding = new Thickness(28, 18),
+                MaximumWidthRequest = 340,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                Margin = 0,
+                Opacity = 0,
+                Scale = 0.72,
+                TranslationY = 18,
+                Content =
+                    new VerticalStackLayout
+                    {
+                        Spacing = 3,
+                        HorizontalOptions = LayoutOptions.Fill,
+                        Children =
+                        {
+                            new Label
+                            {
+                                Text = "TEST NOTIFICATION",
+                                FontSize = 30,
+                                FontAttributes = FontAttributes.Bold,
+                                TextColor = Color.FromArgb("#FFE26A"),
+                                HorizontalTextAlignment = TextAlignment.Center,
+                                HorizontalOptions = LayoutOptions.Center
+                            },
+                            new Label
+                            {
+                                Text = "Notification positioning preview",
+                                FontSize = 18,
+                                FontAttributes = FontAttributes.Bold,
+                                TextColor = Colors.White,
+                                HorizontalTextAlignment = TextAlignment.Center,
+                                HorizontalOptions = LayoutOptions.Center
+                            }
+                        }
+                    }
+            };
+
+        await AddCenteredNotificationAsync(popup);
+
+        await Task.WhenAll(
+            popup.FadeToAsync(1, 180),
+            popup.ScaleToAsync(1, 260, Easing.CubicOut),
+            popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
+
+        await Task.Delay(3000);
+
+        await Task.WhenAll(
+            popup.FadeToAsync(0, 350),
+            popup.ScaleToAsync(0.9, 350, Easing.CubicIn));
+
+        NotificationLayer.Children.Remove(popup);
+    }
+
     private async void ShowLevelUpPopup(
         Skill skill,
         int level)
@@ -1656,19 +1723,7 @@ public partial class GamePage : ContentPage
                 overlayWidth - horizontalMargin * 2));
         double heightConstraint = Math.Max(0, overlayHeight);
 
-        Size measured = notification.Measure(
-            widthConstraint,
-            heightConstraint);
-
-        double notificationWidth = Math.Min(
-            widthConstraint,
-            measured.Width);
-        double notificationHeight = Math.Min(
-            heightConstraint,
-            measured.Height);
-
-        double left = (overlayWidth - notificationWidth) / 2;
-        double top = (overlayHeight - notificationHeight) / 2;
+        notification.MaximumWidthRequest = widthConstraint;
 
         AbsoluteLayout.SetLayoutFlags(
             notification,
@@ -1676,10 +1731,78 @@ public partial class GamePage : ContentPage
         AbsoluteLayout.SetLayoutBounds(
             notification,
             new Rect(
+                0,
+                0,
+                AbsoluteLayout.AutoSize,
+                AbsoluteLayout.AutoSize));
+
+        // Android can return a wider value from Measure than it ultimately
+        // renders for a centered Border. Let it perform that real layout first,
+        // then center the actual rendered size instead of the measured slot.
+        for (int attempt = 0;
+             attempt < 30 &&
+             (notification.Width <= 0 || notification.Height <= 0);
+             attempt++)
+        {
+            await Task.Delay(16);
+        }
+
+        double notificationWidth = notification.Width;
+        double notificationHeight = notification.Height;
+
+        if (notificationWidth <= 0 || notificationHeight <= 0)
+        {
+            Size measured = notification.Measure(
+                widthConstraint,
+                heightConstraint);
+
+            notificationWidth = Math.Min(
+                widthConstraint,
+                measured.Width);
+            notificationHeight = Math.Min(
+                heightConstraint,
+                measured.Height);
+        }
+
+#if ANDROID
+        // MAUI's Android handler leaves a dynamically-created view's native
+        // horizontal scale pivot at the left edge unless the anchor mapper
+        // runs after the view has a size. These popups begin scaled down, so
+        // their visible bounds were left of their correctly-centered frames.
+        // Set the native X pivot from the arranged pixel width before animating.
+        if (notification.Handler?.PlatformView is
+            Android.Views.View platformNotification)
+        {
+            platformNotification.PivotX =
+                platformNotification.Width / 2f;
+        }
+#endif
+
+        double horizontalViewportWidth = overlayWidth;
+
+#if ANDROID
+        DisplayInfo displayInfo =
+            DeviceDisplay.Current.MainDisplayInfo;
+
+        if (displayInfo.Width > 0 && displayInfo.Density > 0)
+        {
+            horizontalViewportWidth =
+                displayInfo.Width / displayInfo.Density;
+        }
+#endif
+
+        double left =
+            horizontalViewportWidth / 2 -
+            notificationWidth / 2;
+        double top = (overlayHeight - notificationHeight) / 2;
+
+        AbsoluteLayout.SetLayoutBounds(
+            notification,
+            new Rect(
                 left,
                 top,
-                notificationWidth,
-                notificationHeight));
+                AbsoluteLayout.AutoSize,
+                AbsoluteLayout.AutoSize));
     }
 
     private async Task ShowThreeFireworksAsync()

@@ -30,6 +30,8 @@
                         <Switch x:Name="InstakillSwitch" Scale="0.82" Toggled="OnInstakillToggled" />
                     </HorizontalStackLayout>
 
+                    <local:GoldSliceButton Text="Show Test Notification" Variant="Neutral" TextColor="White" HorizontalOptions="Center" WidthRequest="300" Clicked="OnShowTestNotificationClicked" />
+
                     <BoxView HeightRequest="1" BackgroundColor="#80D99032" Margin="0,4" />
 
                     <local:GoldSliceButton Text="Return to Character Select" Variant="Neutral" TextColor="White" HorizontalOptions="Center" WidthRequest="300" Clicked="OnReturnToCharacterSelectClicked" />
