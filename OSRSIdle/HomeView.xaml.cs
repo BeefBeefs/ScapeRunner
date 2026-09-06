@@ -376,7 +376,7 @@ public partial class HomeView : ContentView
             1d - Math.Min(1d, record.Chance),
             attempts);
         LuckiestDropChanceLabel.Text =
-            $"Chance by {attempts:N0} {record.Source}: {cumulativeChance:P2}";
+            $"Chance: {cumulativeChance:P2}";
         LuckiestDropChanceLabel.IsVisible = true;
     }
 

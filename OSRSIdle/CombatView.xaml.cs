@@ -1171,6 +1171,11 @@ public partial class CombatView : ContentView
 
     private void SelectEnemy(Enemy enemy)
     {
+        StartCombatNow(enemy);
+    }
+
+    public void StartCombatNow(Enemy enemy)
+    {
         if (!MeetsSkillRequirement(enemy))
             return;
 
@@ -1195,28 +1200,34 @@ public partial class CombatView : ContentView
 
     private void OnCombatStarted()
     {
+        Enemy? startedEnemy = _combatManager.CurrentEnemy;
+        if (startedEnemy == null)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            Enemy? enemy = _combatManager.CurrentEnemy;
-
-            if (enemy == null)
+            // Combat can be stopped or switched before this queued UI update
+            // runs. Never let an old event overwrite the current encounter.
+            if (_combatManager.CurrentEnemy != startedEnemy ||
+                !CombatViewLayout.IsVisible)
                 return;
 
-            _lastEnemy = enemy;
+            _lastEnemy = startedEnemy;
 
-            EnemyNameLabel.Text = FormatEnemyName(enemy);
-            EnemyDescriptionLabel.Text = enemy.Description;
-            EnemyIcon.Source = enemy.LargeIconImage;
+            EnemyNameLabel.Text = FormatEnemyName(startedEnemy);
+            EnemyTraitsLabel.FormattedText = BuildEnemyTraitsText(startedEnemy);
+            EnemyDescriptionLabel.Text = startedEnemy.Description;
+            EnemyIcon.Source = startedEnemy.LargeIconImage;
             UpdateEnemyPortraitAppearance();
             ActiveEnemyDropsHost.IsVisible = true;
-            UpdateEnemyCombatStats(enemy);
+            UpdateEnemyCombatStats(startedEnemy);
 
             UpdateEnemyNameAppearance();
 
-            UpdateEnemyKillCount(enemy);
+            UpdateEnemyKillCount(startedEnemy);
 
             CombatStatusLabel.Text =
-                $"Fighting {enemy.Name}";
+                $"Fighting {startedEnemy.Name}";
 
             StopCombatButton.IsVisible = true;
             FightAgainButton.IsVisible = false;
@@ -1797,6 +1808,12 @@ public partial class CombatView : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_combatManager.CurrentEnemy != null &&
+                _combatManager.CurrentEnemy != enemy)
+            {
+                return;
+            }
+
             _lastEnemy = enemy;
 
             CombatStatusLabel.Text =
@@ -1817,6 +1834,10 @@ public partial class CombatView : ContentView
 
             if (_autoFightEnabled)
             {
+                // Keep Run available while Auto Fight is waiting to respawn.
+                // Pressing it cancels both the pending respawn and combat mode.
+                StopCombatButton.IsVisible = true;
+                StopCombatButton.IsEnabled = true;
                 FightAgainButton.IsVisible = false;
                 EnemySelectButton.IsVisible = false;
                 FightAgainButton.IsEnabled = false;

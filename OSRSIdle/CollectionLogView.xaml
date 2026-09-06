@@ -3,6 +3,7 @@
 <ContentView
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle"
     x:Class="OSRSIdle.CollectionLogView">
 
     <Grid>
@@ -190,6 +191,17 @@
                     <VerticalStackLayout
                         x:Name="DropList"
                         Spacing="5" />
+
+                    <local:GoldSliceButton
+                        Text="Fight now"
+                        FontSize="13"
+                        WidthRequest="112"
+                        HeightRequest="36"
+                        Variant="Green"
+                        TextColor="White"
+                        CenterText="True"
+                        HorizontalOptions="Center"
+                        Clicked="OnFightNowClicked" />
 
                 </VerticalStackLayout>
 

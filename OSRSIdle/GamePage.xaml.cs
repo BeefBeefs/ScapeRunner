@@ -1,5 +1,3 @@
-using Microsoft.Maui.Layouts;
-
 namespace OSRSIdle;
 
 public partial class GamePage : ContentPage
@@ -854,7 +852,8 @@ public partial class GamePage : ContentPage
     {
         _collectionLogView ??=
             new CollectionLogView(
-                Player.CollectionLog);
+                Player.CollectionLog,
+                StartCombatFromCollection);
 
         _collectionLogView.RefreshDisplay();
 
@@ -875,6 +874,12 @@ public partial class GamePage : ContentPage
 
         UpdateNavigationAppearance(CollectionNavigationButton);
         UpdatePageTitle("Collection Log");
+    }
+
+    private void StartCombatFromCollection(Enemy enemy)
+    {
+        ShowCombatPage();
+        _combatView!.StartCombatNow(enemy);
     }
 
 
@@ -1313,6 +1318,9 @@ public partial class GamePage : ContentPage
                 Padding =
                     new Thickness(28, 18),
 
+                MaximumWidthRequest =
+                    340,
+
                 HorizontalOptions =
                     LayoutOptions.Center,
 
@@ -1331,6 +1339,7 @@ public partial class GamePage : ContentPage
                     new VerticalStackLayout
                     {
                         Spacing = 3,
+                        HorizontalOptions = LayoutOptions.Fill,
                         Children =
                         {
                             heading,
@@ -1339,33 +1348,19 @@ public partial class GamePage : ContentPage
                     }
             };
 
-        AbsoluteLayout levelUpPopupHost =
-            new AbsoluteLayout
+        Grid levelUpPopupHost =
+            new Grid
             {
                 HorizontalOptions = LayoutOptions.Fill,
                 VerticalOptions = LayoutOptions.Fill,
                 InputTransparent = true
             };
 
-        // The notification layer is scoped to the content row, which leaves
-        // Android's activity and navigation bars outside the centering area.
-        // Host this popup across the loaded game window instead.
+        // Center within the game content row. The activity and navigation bars
+        // are separate rows in MainGrid and should not affect the dialog's
+        // visual center.
         Grid.SetRow(levelUpPopupHost, 0);
-        Grid.SetRowSpan(levelUpPopupHost, 3);
-
-        // A proportional anchor keeps this popup centered in the available
-        // game area on Android, where a nested Grid can otherwise measure a
-        // centered child from its content origin instead of its full bounds.
-        AbsoluteLayout.SetLayoutFlags(
-            levelUpPopup,
-            AbsoluteLayoutFlags.PositionProportional);
-        AbsoluteLayout.SetLayoutBounds(
-            levelUpPopup,
-            new Rect(
-                0.5,
-                0.5,
-                AbsoluteLayout.AutoSize,
-                AbsoluteLayout.AutoSize));
+        Grid.SetRowSpan(levelUpPopupHost, 1);
 
         levelUpPopupHost.Children.Add(levelUpPopup);
         MainGrid.Children.Add(levelUpPopupHost);
@@ -1477,12 +1472,15 @@ public partial class GamePage : ContentPage
                 Padding = new Thickness(30, 20),
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
+                MaximumWidthRequest = 340,
+                Margin = new Thickness(24, 0),
                 Opacity = 0,
                 Scale = 0.55,
                 TranslationY = 24,
                 Content = new VerticalStackLayout
                 {
                     Spacing = 4,
+                    HorizontalOptions = LayoutOptions.Fill,
                     Children =
                     {
                         titleLabel,
@@ -1491,7 +1489,14 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        NotificationLayer.Children.Add(lootPopup);
+        Grid lootPopupHost = new Grid
+        {
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
+            InputTransparent = true
+        };
+        lootPopupHost.Children.Add(lootPopup);
+        NotificationLayer.Children.Add(lootPopupHost);
 
         await Task.WhenAll(
             lootPopup.FadeToAsync(1, 140),
@@ -1512,7 +1517,7 @@ public partial class GamePage : ContentPage
             lootPopup.ScaleToAsync(0.9, 350, Easing.CubicIn),
             lootPopup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
 
-        NotificationLayer.Children.Remove(lootPopup);
+        NotificationLayer.Children.Remove(lootPopupHost);
     }
 
 

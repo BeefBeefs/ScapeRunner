@@ -3,6 +3,7 @@ namespace OSRSIdle;
 public partial class CollectionLogView : ContentView
 {
     private readonly CollectionLog _collectionLog;
+    private readonly Action<Enemy> _fightNowRequested;
 
     private Enemy? _selectedEnemy;
 
@@ -27,12 +28,15 @@ public partial class CollectionLogView : ContentView
     }
 
     public CollectionLogView(
-        CollectionLog collectionLog)
+        CollectionLog collectionLog,
+        Action<Enemy> fightNowRequested)
     {
         InitializeComponent();
 
         _collectionLog =
             collectionLog;
+        _fightNowRequested =
+            fightNowRequested;
 
         _collectionLog.KillCountChanged += OnKillCountChanged;
         _collectionLog.DropDiscovered += OnDropDiscovered;
@@ -48,6 +52,14 @@ public partial class CollectionLogView : ContentView
             detailTapGesture);
 
         UpdateDisplay();
+    }
+
+    private void OnFightNowClicked(
+        object sender,
+        EventArgs e)
+    {
+        if (_selectedEnemy != null)
+            _fightNowRequested(_selectedEnemy);
     }
 
     public void Dispose()
@@ -339,6 +351,9 @@ public partial class CollectionLogView : ContentView
         if (_selectedEnemy == enemy)
         {
             EnemyDetailCompletionLabel.IsVisible = complete;
+            if (complete && _portraitSparkleCancellation == null)
+                StartPortraitSparkles();
+
             EnemyStatsLabel.Text =
                 $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
                 $"Strength: {enemy.Strength}   Defense: {enemy.Defense}\n" +
@@ -382,7 +397,8 @@ public partial class CollectionLogView : ContentView
             enemy.Description;
 
         EnemyDetailIcon.Source = enemy.LargeIconImage;
-        StartPortraitSparkles();
+        if (_collectionLog.IsComplete(enemy))
+            StartPortraitSparkles();
 
         EnemyStatsLabel.Text =
             $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
@@ -471,33 +487,35 @@ public partial class CollectionLogView : ContentView
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                Label sparkle = new()
+                List<Task> sparkleAnimations = new();
+                for (int index = 0; index < 3; index++)
                 {
-                    Text = "✦",
-                    FontSize = Random.Shared.Next(11, 20),
-                    TextColor = PortraitSparkleColors[
-                        Random.Shared.Next(PortraitSparkleColors.Length)],
-                    Opacity = 0,
-                    WidthRequest = 24,
-                    HeightRequest = 24,
-                    HorizontalTextAlignment = TextAlignment.Center,
-                    VerticalTextAlignment = TextAlignment.Center,
-                    InputTransparent = true
-                };
+                    Label sparkle = new()
+                    {
+                        Text = "✦",
+                        FontSize = Random.Shared.Next(11, 20),
+                        TextColor = PortraitSparkleColors[
+                            Random.Shared.Next(PortraitSparkleColors.Length)],
+                        Opacity = 0,
+                        WidthRequest = 24,
+                        HeightRequest = 24,
+                        HorizontalTextAlignment = TextAlignment.Center,
+                        VerticalTextAlignment = TextAlignment.Center,
+                        InputTransparent = true
+                    };
 
-                double x = Random.Shared.Next(4, 172);
-                double y = Random.Shared.Next(4, 172);
-                AbsoluteLayout.SetLayoutBounds(
-                    sparkle,
-                    new Rect(x, y, 24, 24));
-                EnemyDetailSparkleLayer.Children.Add(sparkle);
+                    double x = Random.Shared.Next(4, 172);
+                    double y = Random.Shared.Next(4, 172);
+                    AbsoluteLayout.SetLayoutBounds(
+                        sparkle,
+                        new Rect(x, y, 24, 24));
+                    EnemyDetailSparkleLayer.Children.Add(sparkle);
+                    sparkleAnimations.Add(AnimatePortraitSparkleAsync(
+                        sparkle,
+                        cancellationToken));
+                }
 
-                await sparkle.FadeToAsync(0.95, 130, Easing.CubicOut);
-                await Task.Delay(
-                    Random.Shared.Next(120, 420),
-                    cancellationToken);
-                await sparkle.FadeToAsync(0, 260, Easing.CubicIn);
-                EnemyDetailSparkleLayer.Children.Remove(sparkle);
+                await Task.WhenAll(sparkleAnimations);
 
                 await Task.Delay(
                     Random.Shared.Next(220, 650),
@@ -512,6 +530,16 @@ public partial class CollectionLogView : ContentView
         {
             // Visual effects should never interrupt collection-log browsing.
         }
+    }
+
+    private async Task AnimatePortraitSparkleAsync(
+        Label sparkle,
+        CancellationToken cancellationToken)
+    {
+        await sparkle.FadeToAsync(0.95, 130, Easing.CubicOut);
+        await Task.Delay(Random.Shared.Next(120, 420), cancellationToken);
+        await sparkle.FadeToAsync(0, 260, Easing.CubicIn);
+        EnemyDetailSparkleLayer.Children.Remove(sparkle);
     }
 
     private void StopPortraitSparkles()
