@@ -3,6 +3,7 @@
 public class Enemy
 {
     private string? _spriteSlug;
+    private IReadOnlyList<EnemyTrait>? _traits;
     // ============================================================
     // BASIC INFORMATION
     // ============================================================
@@ -122,5 +123,9 @@ public class Enemy
         1,
         (Attack + Defense + Strength + HP) / 4);
 
-    public IReadOnlyList<EnemyTrait> Traits => EnemyTraitRules.For(this);
+    // Enemy definitions are populated once during startup and then treated as
+    // immutable. Cache the derived trait list so combat/UI polling does not
+    // repeatedly allocate and re-evaluate the same traits.
+    public IReadOnlyList<EnemyTrait> Traits =>
+        _traits ??= EnemyTraitRules.For(this);
 }

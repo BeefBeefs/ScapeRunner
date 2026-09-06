@@ -1,6 +1,6 @@
 namespace OSRSIdle;
 
-public partial class ActivityBar : ContentView
+public partial class ActivityBar : ContentView, IDisposable
 {
     // ============================================================
     // GAME SYSTEMS
@@ -21,6 +21,8 @@ public partial class ActivityBar : ContentView
 
     private double _combatXPProgress;
 
+    private readonly EventHandler _progressTimerTick;
+
 
     // ============================================================
     // CONSTRUCTOR
@@ -32,6 +34,8 @@ public partial class ActivityBar : ContentView
     {
         InitializeComponent();
 
+        _progressTimerTick = OnProgressTimerTick;
+
         _activityManager =
             activityManager;
 
@@ -39,7 +43,7 @@ public partial class ActivityBar : ContentView
             combatManager;
 
 
-        _activityManager.ActivityChanged +=
+        _activityManager.ActivityStateChanged +=
             OnActivityChanged;
 
         _combatManager.CombatStarted +=
@@ -48,17 +52,10 @@ public partial class ActivityBar : ContentView
         _combatManager.CombatStopped +=
             OnCombatChanged;
 
-        ActivityProgressBar.SizeChanged +=
-            (sender, e) => SetActivityProgress(_activityProgress);
-
-        CombatXPBar.SizeChanged +=
-            (sender, e) => SetCombatXPProgress(_combatXPProgress);
-
-        PlayerMiniHPBar.SizeChanged +=
-            (sender, e) => UpdateCombatMiniHPBars();
-
-        EnemyMiniHPBar.SizeChanged +=
-            (sender, e) => UpdateCombatMiniHPBars();
+        ActivityProgressBar.SizeChanged += OnActivityProgressBarSizeChanged;
+        CombatXPBar.SizeChanged += OnCombatXPBarSizeChanged;
+        PlayerMiniHPBar.SizeChanged += OnMiniHPBarSizeChanged;
+        EnemyMiniHPBar.SizeChanged += OnMiniHPBarSizeChanged;
 
 
         UpdateDisplay();
@@ -107,25 +104,46 @@ public partial class ActivityBar : ContentView
         _progressTimer.Interval =
             TimeSpan.FromMilliseconds(100);
 
-        _progressTimer.Tick +=
-            (sender, e) =>
-            {
-                if (_combatManager.IsAutoFightRespawning)
-                {
-                    UpdateDisplay();
-                }
-                else if (_combatManager.IsInCombat)
-                {
-                    UpdateCombatMiniHPBars();
-                    UpdateCombatXP();
-                }
-                else
-                {
-                    UpdateProgress();
-                }
-            };
+        _progressTimer.Tick += _progressTimerTick;
 
         _progressTimer.Start();
+    }
+
+    private void OnProgressTimerTick(object? sender, EventArgs e)
+    {
+        if (_combatManager.IsAutoFightRespawning)
+            UpdateDisplay();
+        else if (_combatManager.IsInCombat)
+        {
+            UpdateCombatMiniHPBars();
+            UpdateCombatXP();
+        }
+        else
+            UpdateProgress();
+    }
+
+    private void OnActivityProgressBarSizeChanged(object? sender, EventArgs e) =>
+        SetActivityProgress(_activityProgress);
+
+    private void OnCombatXPBarSizeChanged(object? sender, EventArgs e) =>
+        SetCombatXPProgress(_combatXPProgress);
+
+    private void OnMiniHPBarSizeChanged(object? sender, EventArgs e) =>
+        UpdateCombatMiniHPBars();
+
+    public void Dispose()
+    {
+        _progressTimer?.Stop();
+        if (_progressTimer != null)
+            _progressTimer.Tick -= _progressTimerTick;
+
+        _activityManager.ActivityStateChanged -= OnActivityChanged;
+        _combatManager.CombatStarted -= OnCombatChanged;
+        _combatManager.CombatStopped -= OnCombatChanged;
+        ActivityProgressBar.SizeChanged -= OnActivityProgressBarSizeChanged;
+        CombatXPBar.SizeChanged -= OnCombatXPBarSizeChanged;
+        PlayerMiniHPBar.SizeChanged -= OnMiniHPBarSizeChanged;
+        EnemyMiniHPBar.SizeChanged -= OnMiniHPBarSizeChanged;
     }
 
 
@@ -576,7 +594,7 @@ public partial class ActivityBar : ContentView
     // ============================================================
 
     private void OnAttackStyleClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         _combatManager.SetCombatStyle(
@@ -593,7 +611,7 @@ public partial class ActivityBar : ContentView
     // ============================================================
 
     private void OnStrengthStyleClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         _combatManager.SetCombatStyle(
@@ -610,7 +628,7 @@ public partial class ActivityBar : ContentView
     // ============================================================
 
     private void OnDefenseStyleClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         _combatManager.SetCombatStyle(
@@ -627,7 +645,7 @@ public partial class ActivityBar : ContentView
     // ============================================================
 
     private void OnStopClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         if (_combatManager.IsInCombat)

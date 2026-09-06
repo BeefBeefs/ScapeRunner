@@ -1,6 +1,6 @@
 ﻿namespace OSRSIdle;
 
-public class ActivityManager
+public class ActivityManager : IDisposable
 {
     private readonly Player _player;
 
@@ -32,11 +32,11 @@ public class ActivityManager
     // EVENTS
     // ============================================================
 
-    // Fired whenever the current activity changes.
-    public event EventHandler? ActivityChanged;
+    // Fired when an activity starts, stops, or its timing is recalculated.
+    public event EventHandler? ActivityStateChanged;
 
-    // Fired whenever XP is awarded.
-    public event EventHandler? XPChanged;
+    // Fired after an action rewards XP/items and records the action.
+    public event EventHandler? ActionCompleted;
 
     // Fired whenever a skill levels up.
     public event EventHandler<LevelUpEventArgs>? LevelUp;
@@ -70,7 +70,7 @@ public class ActivityManager
         SkillActivity activity)
     {
         // Stop whatever we were doing before.
-        StopActivity();
+        StopActivity(raiseStateChanged: false);
 
         CurrentSkill = skill;
         CurrentActivity = activity;
@@ -78,7 +78,7 @@ public class ActivityManager
         // Set up the first action.
         SetNextAction();
 
-        ActivityChanged?.Invoke(
+        ActivityStateChanged?.Invoke(
             this,
             EventArgs.Empty);
 
@@ -137,7 +137,7 @@ public class ActivityManager
         ActionEnds = ActionStarted.AddMilliseconds(
             newDurationMilliseconds);
 
-        ActivityChanged?.Invoke(this, EventArgs.Empty);
+        ActivityStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
 
@@ -193,7 +193,8 @@ public class ActivityManager
 
             // Award XP.
             CurrentSkill.AddXP(
-                CurrentActivity.XP);
+                CurrentActivity.XP *
+                CombatRules.GetSkillXpMultiplier(CurrentSkill));
 
             CurrentSkill.RecordAction();
 
@@ -214,7 +215,7 @@ public class ActivityManager
             // XP EVENT
             // ====================================================
 
-            XPChanged?.Invoke(
+            ActionCompleted?.Invoke(
                 this,
                 EventArgs.Empty);
 
@@ -241,9 +242,6 @@ public class ActivityManager
             // We simply reset the timestamps.
             SetNextAction();
 
-            ActivityChanged?.Invoke(
-                this,
-                EventArgs.Empty);
         }
     }
 
@@ -252,7 +250,7 @@ public class ActivityManager
     // STOP ACTIVITY
     // ============================================================
 
-    public void StopActivity()
+    public void StopActivity(bool raiseStateChanged = true)
     {
         _cancellationTokenSource?.Cancel();
 
@@ -268,9 +266,18 @@ public class ActivityManager
 
         ActionEnds = default;
 
-        ActivityChanged?.Invoke(
-            this,
-            EventArgs.Empty);
+        if (raiseStateChanged)
+        {
+            ActivityStateChanged?.Invoke(
+                this,
+                EventArgs.Empty);
+        }
+    }
+
+    public void Dispose()
+    {
+        StopActivity();
+        GameClock.SpeedChanged -= OnGameSpeedChanged;
     }
 
 

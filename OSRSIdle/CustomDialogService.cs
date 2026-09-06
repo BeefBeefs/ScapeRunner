@@ -9,6 +9,12 @@ public static class CustomDialogService
         _host = host;
     }
 
+    public static void ClearHost(GamePage host)
+    {
+        if (ReferenceEquals(_host, host))
+            _host = null;
+    }
+
     public static Task<string?> ShowAsync(
         string title,
         string message,

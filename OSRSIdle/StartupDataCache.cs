@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace OSRSIdle;
 
 public readonly record struct StartupProgress(
@@ -115,87 +117,77 @@ public static class StartupDataCache
     private static async Task InitializeCoreAsync(IProgress<StartupProgress> progress)
     {
         progress.Report(new StartupProgress(0.08, "Preparing core data"));
-        await Task.Yield();
 
+        // Keep the UI responsive with one background cache build instead of
+        // scheduling every small dictionary and array separately.
         await Task.Run(() =>
         {
             _ = ExperienceTable.GetXPForLevel(99);
-        });
 
-        progress.Report(new StartupProgress(0.18, "Loading items"));
-        Items = await Task.Run(() => (IReadOnlyList<Item>)ItemData.AllItems);
-        ItemsByName = await Task.Run(() =>
-            Items.ToDictionary(item => item.Name, StringComparer.OrdinalIgnoreCase));
+            progress.Report(new StartupProgress(0.18, "Loading items"));
+            Items = Array.AsReadOnly(ItemData.AllItems.ToArray());
+            ItemsByName = new ReadOnlyDictionary<string, Item>(Items.ToDictionary(
+                item => item.Name,
+                StringComparer.OrdinalIgnoreCase));
 
-        progress.Report(new StartupProgress(0.36, "Loading enemies and drops"));
-        Enemies = await Task.Run(() => (IReadOnlyList<Enemy>)EnemyData.AllEnemies);
+            progress.Report(new StartupProgress(0.36, "Loading enemies and drops"));
+            Enemies = Array.AsReadOnly(EnemyData.AllEnemies.ToArray());
 
-        progress.Report(new StartupProgress(0.52, "Building combat lookups"));
-        await Task.Run(() =>
-        {
-            EnemiesByName = Enemies.ToDictionary(
+            progress.Report(new StartupProgress(0.52, "Building combat lookups"));
+            EnemiesByName = new ReadOnlyDictionary<string, Enemy>(Enemies.ToDictionary(
                 enemy => enemy.Name,
-                StringComparer.OrdinalIgnoreCase);
-            OrderedEnemies = Enemies
+                StringComparer.OrdinalIgnoreCase));
+            OrderedEnemies = Array.AsReadOnly(Enemies
                 .OrderBy(enemy => enemy.Tier)
                 .ThenBy(enemy => enemy.CombatLevel)
                 .ThenBy(enemy => enemy.Name)
-                .ToArray();
-            EnemiesByTier = Enum.GetValues<EnemyTier>()
+                .ToArray());
+            EnemiesByTier = new ReadOnlyDictionary<EnemyTier, IReadOnlyList<Enemy>>(Enum.GetValues<EnemyTier>()
                 .ToDictionary(
                     tier => tier,
-                    tier => (IReadOnlyList<Enemy>)Enemies
+                    tier => (IReadOnlyList<Enemy>)Array.AsReadOnly(Enemies
                         .Where(enemy => enemy.Tier == tier)
                         .OrderBy(enemy => enemy.CombatLevel)
                         .ThenBy(enemy => enemy.Name)
-                        .ToArray());
-        });
+                        .ToArray())));
 
-        progress.Report(new StartupProgress(0.66, "Indexing Collection Log"));
-        await Task.Run(() =>
-        {
-            CollectionItemsByEnemy = Enemies.ToDictionary(
+            progress.Report(new StartupProgress(0.66, "Indexing Collection Log"));
+            CollectionItemsByEnemy = new ReadOnlyDictionary<Enemy, IReadOnlyList<Item>>(Enemies.ToDictionary(
                 enemy => enemy,
-                enemy => (IReadOnlyList<Item>)enemy.DropTable.Drops
+                enemy => (IReadOnlyList<Item>)Array.AsReadOnly(enemy.DropTable.Drops
                     .Select(drop => drop.Item)
                     .Distinct()
-                    .ToArray());
-            EnemiesByDropItem = Enemies
+                    .ToArray())));
+            EnemiesByDropItem = new ReadOnlyDictionary<Item, IReadOnlyList<Enemy>>(Enemies
                 .SelectMany(enemy => GetCollectionItems(enemy)
                     .Select(item => (item, enemy)))
                 .GroupBy(pair => pair.item)
                 .ToDictionary(
                     group => group.Key,
-                    group => (IReadOnlyList<Enemy>)group
+                    group => (IReadOnlyList<Enemy>)Array.AsReadOnly(group
                         .Select(pair => pair.enemy)
                         .Distinct()
-                        .ToArray());
+                        .ToArray())));
             TotalCollectionSlots = CollectionItemsByEnemy.Values.Sum(items => items.Count) +
                 SkillingPetData.AllPets.Count;
-        });
 
-        progress.Report(new StartupProgress(0.78, "Loading skills and activities"));
-        await Task.Run(() =>
-        {
-            SkillActivitiesByName = new Dictionary<string, IReadOnlyList<SkillActivity>>(
+            progress.Report(new StartupProgress(0.78, "Loading skills and activities"));
+            SkillActivitiesByName = new ReadOnlyDictionary<string, IReadOnlyList<SkillActivity>>(
+                new Dictionary<string, IReadOnlyList<SkillActivity>>(
                 StringComparer.OrdinalIgnoreCase)
             {
-                ["Fishing"] = GameData.Fishing,
-                ["Mining"] = GameData.Mining,
-                ["Woodcutting"] = GameData.Woodcutting,
-                ["Agility"] = GameData.Agility,
-                ["Thieving"] = GameData.Thieving,
-                ["Crafting"] = GameData.Crafting,
-                ["Fletching"] = GameData.Fletching,
-                ["Farming"] = GameData.Farming
-            };
-        });
+                ["Fishing"] = Array.AsReadOnly(GameData.Fishing.ToArray()),
+                ["Mining"] = Array.AsReadOnly(GameData.Mining.ToArray()),
+                ["Woodcutting"] = Array.AsReadOnly(GameData.Woodcutting.ToArray()),
+                ["Agility"] = Array.AsReadOnly(GameData.Agility.ToArray()),
+                ["Thieving"] = Array.AsReadOnly(GameData.Thieving.ToArray()),
+                ["Crafting"] = Array.AsReadOnly(GameData.Crafting.ToArray()),
+                ["Fletching"] = Array.AsReadOnly(GameData.Fletching.ToArray()),
+                ["Farming"] = Array.AsReadOnly(GameData.Farming.ToArray())
+                });
 
-        progress.Report(new StartupProgress(0.90, "Caching shared resources"));
-        GameThemeCache.WarmUp();
-        await Task.Run(() =>
-        {
-            // Materialize repeatedly-used resource paths once during startup.
+            progress.Report(new StartupProgress(0.90, "Caching shared resources"));
+            GameThemeCache.WarmUp();
             foreach (Item item in Items)
                 _ = item.IconImage;
 

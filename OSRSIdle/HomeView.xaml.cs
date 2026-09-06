@@ -8,6 +8,8 @@ public partial class HomeView : ContentView
 
     private readonly ActivityManager _activityManager;
 
+    private bool _inventoryFullMessageShowing;
+
 
     // ============================================================
     // CONSTRUCTOR
@@ -47,7 +49,7 @@ public partial class HomeView : ContentView
         _combatManager.XPChanged +=
             OnXPChanged;
 
-        _activityManager.ActivityChanged +=
+        _activityManager.ActivityStateChanged +=
             OnActivityChanged;
 
         _player.EquipmentChanged +=
@@ -87,7 +89,7 @@ public partial class HomeView : ContentView
         _combatManager.XPChanged -=
             OnXPChanged;
 
-        _activityManager.ActivityChanged -=
+        _activityManager.ActivityStateChanged -=
             OnActivityChanged;
 
         _player.EquipmentChanged -=
@@ -481,7 +483,7 @@ public partial class HomeView : ContentView
         slotBorder.GestureRecognizers.Add(tap);
     }
 
-    private void UnequipSlot(EquipmentSlot slot)
+    private async void UnequipSlot(EquipmentSlot slot)
     {
         Item? item = _player.GetEquippedItem(slot);
 
@@ -497,6 +499,30 @@ public partial class HomeView : ContentView
             return;
         }
 
+        // Unequipping adds the item back to the inventory. Check the exact
+        // item first so a full inventory can still accept another copy into
+        // an existing stack, but never remove gear when no space is available.
+        if (!_player.Inventory.CanAddItem(item))
+        {
+            if (_player.Inventory.IsFull && !_inventoryFullMessageShowing)
+            {
+                _inventoryFullMessageShowing = true;
+                try
+                {
+                    await CustomDialogService.ShowAsync(
+                        "Inventory full",
+                        "Free an inventory slot before unequipping this equipment.",
+                        "OK");
+                }
+                finally
+                {
+                    _inventoryFullMessageShowing = false;
+                }
+            }
+
+            return;
+        }
+
         if (_player.UnequipItem(slot))
         {
             UpdateDisplay();
@@ -505,7 +531,7 @@ public partial class HomeView : ContentView
 
 
     private void OnAutoEquipClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         _player.AutoEquipBestGear();

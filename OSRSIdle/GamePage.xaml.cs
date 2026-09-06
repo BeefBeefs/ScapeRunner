@@ -30,6 +30,12 @@ public partial class GamePage : ContentPage
 
     private SettingsView? _settingsView;
 
+    private ActivityBar? _activityBar;
+
+    private readonly NotificationQueue _notificationQueue = new();
+
+    private bool _disposed;
+
 
     // ============================================================
     // PLAYER DEATH
@@ -105,23 +111,22 @@ public partial class GamePage : ContentPage
         // Create persistent Activity Bar.
         // --------------------------------------------------------
 
-        ActivityBarContainer.Content =
-            new ActivityBar(
-                ActivityManager,
-                CombatManager);
+        _activityBar = new ActivityBar(
+            ActivityManager,
+            CombatManager);
+        ActivityBarContainer.Content = _activityBar;
 
 
         // --------------------------------------------------------
         // Listen for game events.
         // --------------------------------------------------------
 
-        ActivityManager.XPChanged +=
-            (sender, e) => _game.ScheduleSave();
+        ActivityManager.ActionCompleted += OnActivityXPChanged;
 
         ActivityManager.LevelUp +=
             OnLevelUp;
 
-        ActivityManager.ActivityChanged +=
+        ActivityManager.ActivityStateChanged +=
             OnActivityChanged;
 
         CombatManager.PlayerDefeated +=
@@ -182,24 +187,7 @@ public partial class GamePage : ContentPage
 
         GameClock.SpeedChanged += OnGameSpeedChanged;
 
-        _healthRegenerationTimer.Tick += (sender, e) =>
-        {
-            _healthRegenerationTickCount++;
-
-            if (_healthRegenerationTickCount < HealthRegenerationTicks)
-                return;
-
-            _healthRegenerationTickCount = 0;
-
-            if (Player.CurrentHP >= Player.GetMaxHP())
-                return;
-
-            Player.CurrentHP = Math.Min(
-                Player.GetMaxHP(),
-                Player.CurrentHP + 1);
-
-            _game.ScheduleSave();
-        };
+        _healthRegenerationTimer.Tick += OnHealthRegenerationTick;
 
         _healthRegenerationTimer.Start();
     }
@@ -208,6 +196,30 @@ public partial class GamePage : ContentPage
     {
         if (_healthRegenerationTimer != null)
             _healthRegenerationTimer.Interval = GameClock.TickInterval;
+    }
+
+    private void OnActivityXPChanged(object? sender, EventArgs e)
+    {
+        _game.ScheduleSave();
+    }
+
+    private void OnHealthRegenerationTick(object? sender, EventArgs e)
+    {
+        _healthRegenerationTickCount++;
+
+        if (_healthRegenerationTickCount < HealthRegenerationTicks)
+            return;
+
+        _healthRegenerationTickCount = 0;
+
+        if (Player.CurrentHP >= Player.GetMaxHP())
+            return;
+
+        Player.CurrentHP = Math.Min(
+            Player.GetMaxHP(),
+            Player.CurrentHP + 1);
+
+        _game.ScheduleSave();
     }
 
     private async void OnGamePageLoaded(
@@ -891,20 +903,69 @@ public partial class GamePage : ContentPage
         _settingsView ??= new SettingsView(
             ResetCharacter,
             ReturnToCharacterSelect,
-            ShowDebugNotification);
+            QueueDebugNotification);
         GameContent.Content = _settingsView;
 
         UpdateNavigationAppearance(SettingsNavigationButton);
         UpdatePageTitle("Settings");
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        Loaded -= OnGamePageLoaded;
+        SizeChanged -= OnGamePageSizeChanged;
+        GameClock.SpeedChanged -= OnGameSpeedChanged;
+
+        ActivityManager.ActionCompleted -= OnActivityXPChanged;
+        ActivityManager.LevelUp -= OnLevelUp;
+        ActivityManager.ActivityStateChanged -= OnActivityChanged;
+        CombatManager.PlayerDefeated -= OnPlayerDefeated;
+        CombatManager.XPChanged -= _game.ScheduleSave;
+        CombatManager.EnemyDefeated -= OnEnemyDefeated;
+        CombatManager.LevelUp -= OnLevelUp;
+        CombatManager.CombatStarted -= OnCombatStarted;
+        Player.CollectionLog.CollectionCompleted -= OnCollectionCompleted;
+
+        _notificationQueue.Dispose();
+
+        _deathCancellation?.Cancel();
+        _deathCancellation?.Dispose();
+        _deathCancellation = null;
+
+        if (_healthRegenerationTimer != null)
+        {
+            _healthRegenerationTimer.Stop();
+            _healthRegenerationTimer.Tick -= OnHealthRegenerationTick;
+            _healthRegenerationTimer = null;
+        }
+
+        _settingsView?.Dispose();
+        _homeView?.Dispose();
+        _combatView?.Dispose();
+        _collectionLogView?.Dispose();
+        _inventoryView?.Dispose();
+        _skillsView?.Dispose();
+        _activityBar?.Dispose();
+
+        CustomDialogService.ClearHost(this);
+
+        _game.ClearActivityManagers(ActivityManager, CombatManager);
+        ActivityManager.Dispose();
+        CombatManager.Dispose();
+
+        ActivityBarContainer.Content = null;
+        GameContent.Content = null;
+    }
+
     private void ReturnToCharacterSelect()
     {
-        _settingsView?.Dispose();
-        ActivityManager.StopActivity();
-        CombatManager.AbortCombatEncounter();
-        _healthRegenerationTimer?.Stop();
         _game.Save();
+        Dispose();
 
         Window? window = Application.Current?.Windows.FirstOrDefault();
         if (window != null)
@@ -913,10 +974,7 @@ public partial class GamePage : ContentPage
 
     private void ResetCharacter()
     {
-        _settingsView?.Dispose();
-        ActivityManager.StopActivity();
-        CombatManager.AbortCombatEncounter();
-        _healthRegenerationTimer?.Stop();
+        Dispose();
         _game.Reset();
 
         Window? window = Application.Current?.Windows.FirstOrDefault();
@@ -1248,9 +1306,11 @@ public partial class GamePage : ContentPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            ShowLevelUpPopup(
-                e.Skill,
-                e.Level);
+            _notificationQueue.Enqueue(cancellationToken =>
+                ShowLevelUpPopupAsync(
+                    e.Skill,
+                    e.Level,
+                    cancellationToken));
         });
     }
 
@@ -1272,9 +1332,8 @@ public partial class GamePage : ContentPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             foreach (LootResult loot in rareLoot)
-            {
-                ShowRareLootPopup(loot);
-            }
+                _notificationQueue.Enqueue(cancellationToken =>
+                    ShowRareLootPopupAsync(loot, cancellationToken));
         });
     }
 
@@ -1282,7 +1341,8 @@ public partial class GamePage : ContentPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            _ = ShowCollectionCompletedPopup(enemy);
+            _notificationQueue.Enqueue(cancellationToken =>
+                ShowCollectionCompletedPopupAsync(enemy, cancellationToken));
         });
     }
 
@@ -1291,7 +1351,12 @@ public partial class GamePage : ContentPage
     // LEVEL UP POPUP
     // ============================================================
 
-    private async void ShowDebugNotification()
+    private void QueueDebugNotification()
+    {
+        _notificationQueue.Enqueue(ShowDebugNotificationAsync);
+    }
+
+    private async Task ShowDebugNotificationAsync(CancellationToken cancellationToken)
     {
         Border popup =
             new Border
@@ -1341,27 +1406,34 @@ public partial class GamePage : ContentPage
                     }
             };
 
-        await AddCenteredNotificationAsync(popup);
+        try
+        {
+            await AddCenteredNotificationAsync(popup, cancellationToken: cancellationToken);
 
-        await Task.WhenAll(
-            popup.FadeToAsync(1, 180),
-            popup.ScaleToAsync(1, 260, Easing.CubicOut),
-            popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
+            await Task.WhenAll(
+                popup.FadeToAsync(1, 180),
+                popup.ScaleToAsync(1, 260, Easing.CubicOut),
+                popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
 
-        await Task.Delay(3000);
+            await Task.Delay(3000, cancellationToken);
 
-        await Task.WhenAll(
-            popup.FadeToAsync(0, 350),
-            popup.ScaleToAsync(0.9, 350, Easing.CubicIn));
-
-        NotificationLayer.Children.Remove(popup);
+            await Task.WhenAll(
+                popup.FadeToAsync(0, 350),
+                popup.ScaleToAsync(0.9, 350, Easing.CubicIn),
+                popup.TranslateToAsync(0, -24, 350, Easing.CubicIn));
+        }
+        finally
+        {
+            NotificationLayer.Children.Remove(popup);
+        }
     }
 
-    private async void ShowLevelUpPopup(
+    private async Task ShowLevelUpPopupAsync(
         Skill skill,
-        int level)
+        int level,
+        CancellationToken cancellationToken)
     {
-        _ = ShowLevelUpFireworksAsync();
+        _ = ShowLevelUpFireworksAsync(cancellationToken);
 
         Label heading =
             new Label
@@ -1454,41 +1526,26 @@ public partial class GamePage : ContentPage
                     }
             };
 
-        await AddCenteredNotificationAsync(levelUpPopup);
+        try
+        {
+            await AddCenteredNotificationAsync(levelUpPopup, cancellationToken: cancellationToken);
 
+            await Task.WhenAll(
+                levelUpPopup.FadeToAsync(1, 180),
+                levelUpPopup.ScaleToAsync(1, 260, Easing.CubicOut),
+                levelUpPopup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
 
-        await Task.WhenAll(
-            levelUpPopup.FadeToAsync(
-                1,
-                180),
+            await Task.Delay(3000, cancellationToken);
 
-            levelUpPopup.ScaleToAsync(
-                1,
-                260,
-                Easing.CubicOut),
-
-            levelUpPopup.TranslateToAsync(
-                0,
-                0,
-                260,
-                Easing.CubicOut));
-
-
-        await Task.Delay(3000);
-
-
-        await Task.WhenAll(
-            levelUpPopup.FadeToAsync(
-                0,
-                350),
-
-            levelUpPopup.ScaleToAsync(
-                0.9,
-                350,
-                Easing.CubicIn));
-
-
-        NotificationLayer.Children.Remove(levelUpPopup);
+            await Task.WhenAll(
+                levelUpPopup.FadeToAsync(0, 350),
+                levelUpPopup.ScaleToAsync(0.9, 350, Easing.CubicIn),
+                levelUpPopup.TranslateToAsync(0, -24, 350, Easing.CubicIn));
+        }
+        finally
+        {
+            NotificationLayer.Children.Remove(levelUpPopup);
+        }
     }
 
 
@@ -1496,12 +1553,13 @@ public partial class GamePage : ContentPage
     // RARE LOOT POPUP
     // ============================================================
 
-    private async void ShowRareLootPopup(
-        LootResult loot)
+    private async Task ShowRareLootPopupAsync(
+        LootResult loot,
+        CancellationToken cancellationToken)
     {
         if (loot.Rarity is DropRarity.SuperRare or DropRarity.MegaRare)
         {
-            _ = ShowThreeFireworksAsync();
+            _ = ShowThreeFireworksAsync(cancellationToken);
         }
 
         string title;
@@ -1514,14 +1572,14 @@ public partial class GamePage : ContentPage
             title = "MEGA RARE DROP!";
             accentColor = Color.FromArgb("#FF4DFF");
             peakScale = 1.22;
-            displayMilliseconds = 4000;
+            displayMilliseconds = 3000;
         }
         else if (loot.Chance <= 0.001)
         {
             title = "SUPER RARE DROP!";
             accentColor = Color.FromArgb("#FFCC33");
             peakScale = 1.14;
-            displayMilliseconds = 3500;
+            displayMilliseconds = 3000;
         }
         else
         {
@@ -1580,28 +1638,34 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        await AddCenteredNotificationAsync(lootPopup);
-
-        await Task.WhenAll(
-            lootPopup.FadeToAsync(1, 140),
-            lootPopup.ScaleToAsync(peakScale, 260, Easing.CubicOut),
-            lootPopup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
-
-        if (loot.Chance <= 0.001)
+        try
         {
-            await lootPopup.TranslateToAsync(-8, 0, 55);
-            await lootPopup.TranslateToAsync(8, 0, 55);
-            await lootPopup.TranslateToAsync(0, 0, 55);
+            await AddCenteredNotificationAsync(lootPopup, cancellationToken: cancellationToken);
+
+            await Task.WhenAll(
+                lootPopup.FadeToAsync(1, 140),
+                lootPopup.ScaleToAsync(peakScale, 260, Easing.CubicOut),
+                lootPopup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
+
+            if (loot.Chance <= 0.001)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await lootPopup.TranslateToAsync(-8, 0, 55);
+                await lootPopup.TranslateToAsync(8, 0, 55);
+                await lootPopup.TranslateToAsync(0, 0, 55);
+            }
+
+            await Task.Delay(displayMilliseconds, cancellationToken);
+
+            await Task.WhenAll(
+                lootPopup.FadeToAsync(0, 350),
+                lootPopup.ScaleToAsync(0.9, 350, Easing.CubicIn),
+                lootPopup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
         }
-
-        await Task.Delay(displayMilliseconds);
-
-        await Task.WhenAll(
-            lootPopup.FadeToAsync(0, 350),
-            lootPopup.ScaleToAsync(0.9, 350, Easing.CubicIn),
-            lootPopup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
-
-        NotificationLayer.Children.Remove(lootPopup);
+        finally
+        {
+            NotificationLayer.Children.Remove(lootPopup);
+        }
     }
 
 
@@ -1609,9 +1673,11 @@ public partial class GamePage : ContentPage
     // COLLECTION LOG COMPLETION POPUP
     // ============================================================
 
-    private async Task ShowCollectionCompletedPopup(Enemy enemy)
+    private async Task ShowCollectionCompletedPopupAsync(
+        Enemy enemy,
+        CancellationToken cancellationToken)
     {
-        _ = ShowThreeFireworksAsync();
+        _ = ShowThreeFireworksAsync(cancellationToken);
 
         Label titleLabel =
             new Label
@@ -1666,21 +1732,26 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        await AddCenteredNotificationAsync(popup);
+        try
+        {
+            await AddCenteredNotificationAsync(popup, cancellationToken: cancellationToken);
 
-        await Task.WhenAll(
-            popup.FadeToAsync(1, 140),
-            popup.ScaleToAsync(1.14, 260, Easing.CubicOut),
-            popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
+            await Task.WhenAll(
+                popup.FadeToAsync(1, 140),
+                popup.ScaleToAsync(1.14, 260, Easing.CubicOut),
+                popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
 
-        await Task.Delay(4000);
+        await Task.Delay(3000, cancellationToken);
 
-        await Task.WhenAll(
-            popup.FadeToAsync(0, 350, Easing.CubicIn),
-            popup.ScaleToAsync(0.9, 350, Easing.CubicIn),
-            popup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
-
-        NotificationLayer.Children.Remove(popup);
+            await Task.WhenAll(
+                popup.FadeToAsync(0, 350, Easing.CubicIn),
+                popup.ScaleToAsync(0.9, 350, Easing.CubicIn),
+                popup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
+        }
+        finally
+        {
+            NotificationLayer.Children.Remove(popup);
+        }
     }
 
 
@@ -1691,8 +1762,10 @@ public partial class GamePage : ContentPage
     private async Task AddCenteredNotificationAsync(
         View notification,
         double maximumWidth = 340,
-        double horizontalMargin = 24)
+        double horizontalMargin = 24,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         NotificationLayer.Children.Add(notification);
 
         // Wait for Android to arrange the full-window overlay before using
@@ -1704,7 +1777,7 @@ public partial class GamePage : ContentPage
              (NotificationLayer.Width <= 0 || NotificationLayer.Height <= 0);
              attempt++)
         {
-            await Task.Delay(16);
+            await Task.Delay(16, cancellationToken);
         }
 
         double overlayWidth = NotificationLayer.Width;
@@ -1744,7 +1817,7 @@ public partial class GamePage : ContentPage
              (notification.Width <= 0 || notification.Height <= 0);
              attempt++)
         {
-            await Task.Delay(16);
+            await Task.Delay(16, cancellationToken);
         }
 
         double notificationWidth = notification.Width;
@@ -1805,7 +1878,7 @@ public partial class GamePage : ContentPage
                 AbsoluteLayout.AutoSize));
     }
 
-    private async Task ShowThreeFireworksAsync()
+    private async Task ShowThreeFireworksAsync(CancellationToken cancellationToken = default)
     {
         (Color Color, double X, double Y, int Delay)[] fireworks =
         {
@@ -1814,15 +1887,22 @@ public partial class GamePage : ContentPage
             (Color.FromArgb("#FF7DC8"), 92, -72, 230)
         };
 
-        await Task.WhenAll(fireworks.Select(firework =>
-            ShowFireworkAsync(
-                firework.Color,
-                firework.X,
-                firework.Y,
-                firework.Delay)));
+        try
+        {
+            await Task.WhenAll(fireworks.Select(firework =>
+                ShowFireworkAsync(
+                    firework.Color,
+                    firework.X,
+                    firework.Y,
+                    firework.Delay,
+                    cancellationToken)));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
-    private async Task ShowLevelUpFireworksAsync()
+    private async Task ShowLevelUpFireworksAsync(CancellationToken cancellationToken = default)
     {
         Color[] colors =
         {
@@ -1839,22 +1919,30 @@ public partial class GamePage : ContentPage
             .OrderBy(time => time)
             .ToArray();
 
-        await Task.WhenAll(launchTimes.Select(launchTime =>
-            ShowFireworkAsync(
-                colors[Random.Shared.Next(colors.Length)],
-                Random.Shared.Next(-118, 119),
-                Random.Shared.Next(-150, -24),
-                launchTime)));
+        try
+        {
+            await Task.WhenAll(launchTimes.Select(launchTime =>
+                ShowFireworkAsync(
+                    colors[Random.Shared.Next(colors.Length)],
+                    Random.Shared.Next(-118, 119),
+                    Random.Shared.Next(-150, -24),
+                    launchTime,
+                    cancellationToken)));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task ShowFireworkAsync(
         Color color,
         double x,
         double y,
-        int delayMilliseconds)
+        int delayMilliseconds,
+        CancellationToken cancellationToken = default)
     {
         if (delayMilliseconds > 0)
-            await Task.Delay(delayMilliseconds);
+            await Task.Delay(delayMilliseconds, cancellationToken);
 
         Grid burst = new Grid
         {
@@ -1899,23 +1987,29 @@ public partial class GamePage : ContentPage
             });
         }
 
-        await AddCenteredNotificationAsync(
-            burst,
-            maximumWidth: 72,
-            horizontalMargin: 0);
+        try
+        {
+            await AddCenteredNotificationAsync(
+                burst,
+                maximumWidth: 72,
+                horizontalMargin: 0,
+                cancellationToken: cancellationToken);
 
-        await Task.WhenAll(
-            burst.FadeToAsync(1, 70),
-            burst.ScaleToAsync(1.1, 230, Easing.CubicOut),
-            burst.TranslateToAsync(x, y, 230, Easing.CubicOut));
+            await Task.WhenAll(
+                burst.FadeToAsync(1, 70),
+                burst.ScaleToAsync(1.1, 230, Easing.CubicOut),
+                burst.TranslateToAsync(x, y, 230, Easing.CubicOut));
 
-        await Task.Delay(120);
+            await Task.Delay(120, cancellationToken);
 
-        await Task.WhenAll(
-            burst.FadeToAsync(0, 330, Easing.CubicIn),
-            burst.ScaleToAsync(1.65, 330, Easing.CubicIn));
-
-        NotificationLayer.Children.Remove(burst);
+            await Task.WhenAll(
+                burst.FadeToAsync(0, 330, Easing.CubicIn),
+                burst.ScaleToAsync(1.65, 330, Easing.CubicIn));
+        }
+        finally
+        {
+            NotificationLayer.Children.Remove(burst);
+        }
     }
 
 
@@ -1924,7 +2018,7 @@ public partial class GamePage : ContentPage
     // ============================================================
 
     private void OnHomeClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowHomePage();
@@ -1932,7 +2026,7 @@ public partial class GamePage : ContentPage
 
 
     private void OnSkillsClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowSkillsPage();
@@ -1940,7 +2034,7 @@ public partial class GamePage : ContentPage
 
 
     private void OnCombatClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowCombatPage();
@@ -1948,14 +2042,14 @@ public partial class GamePage : ContentPage
 
 
     private void OnInventoryClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowInventoryPage();
     }
 
     private void OnCollectionLogClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowCollectionLogPage();
@@ -1963,7 +2057,7 @@ public partial class GamePage : ContentPage
 
 
     private void OnSettingsClicked(
-        object sender,
+        object? sender,
         TappedEventArgs e)
     {
         ShowSettingsPage();

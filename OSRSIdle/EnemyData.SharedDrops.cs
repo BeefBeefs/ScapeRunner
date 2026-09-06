@@ -4,9 +4,9 @@ public static partial class EnemyData
 {
     private static void AddSharedDrops()
     {
-        for (int enemyIndex = 0; enemyIndex < AllEnemies.Count; enemyIndex++)
+        for (int enemyIndex = 0; enemyIndex < EnemyRegistry.Count; enemyIndex++)
         {
-            Enemy enemy = AllEnemies[enemyIndex];
+            Enemy enemy = EnemyRegistry[enemyIndex];
             IReadOnlyList<Item> pool = GetSharedDropPool(enemy.Tier);
             int desiredDropCount = 1 + (enemyIndex % 3);
             int addedDropCount = 0;

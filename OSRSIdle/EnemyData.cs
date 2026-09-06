@@ -1519,7 +1519,7 @@ public static partial class EnemyData
     // ALL ENEMIES
     // ============================================================
 
-    public static List<Enemy> AllEnemies = new()
+    private static readonly List<Enemy> EnemyRegistry = new()
     {
         // Tier 1
         Chicken,
@@ -1582,6 +1582,8 @@ public static partial class EnemyData
         CreateExpandedEnemy("The Crownless King", "👑", EnemyTier.Tier7, 300, 75, 82, 72, 6, ItemData.AstralDust, ItemData.MonarchsMantle, ItemData.AstralCrown, ItemData.CrownlessKingsBlade, requiredSkillName: "Farming", requiredSkillIcon: "🌱", requiredSkillLevel: 90)
     };
 
+    public static IReadOnlyList<Enemy> AllEnemies { get; private set; } = Array.Empty<Enemy>();
+
     static EnemyData()
     {
         AddAreaBosses();
@@ -1589,6 +1591,10 @@ public static partial class EnemyData
         AddEquipmentExpansionTwoDrops();
         AddSharedDrops();
         BalanceEquipmentDropRates();
-        EnemyDescriptions.Apply(AllEnemies);
+        EnemyDescriptions.Apply(EnemyRegistry);
+
+        // Publish a read-only snapshot after generated enemies and balanced
+        // drop tables have been applied.
+        AllEnemies = Array.AsReadOnly(EnemyRegistry.ToArray());
     }
 }

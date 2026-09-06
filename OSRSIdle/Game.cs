@@ -60,14 +60,45 @@ public class Game
         ActivityManager activityManager,
         CombatManager combatManager)
     {
+        if (_activityManager != null)
+            _activityManager.ActivityStateChanged -= OnActivityChangedForSave;
+
+        if (_combatManager != null)
+        {
+            _combatManager.CombatStarted -= ScheduleSave;
+            _combatManager.CombatStopped -= ScheduleSave;
+        }
+
         _activityManager = activityManager;
         _combatManager = combatManager;
 
         _combatManager.SetCombatStyle(LastCombatStyle);
 
-        _activityManager.ActivityChanged += (sender, e) => ScheduleSave();
+        _activityManager.ActivityStateChanged += OnActivityChangedForSave;
         _combatManager.CombatStarted += ScheduleSave;
         _combatManager.CombatStopped += ScheduleSave;
+    }
+
+    private void OnActivityChangedForSave(object? sender, EventArgs e)
+    {
+        ScheduleSave();
+    }
+
+    public void ClearActivityManagers(
+        ActivityManager activityManager,
+        CombatManager combatManager)
+    {
+        if (!ReferenceEquals(_activityManager, activityManager) ||
+            !ReferenceEquals(_combatManager, combatManager))
+        {
+            return;
+        }
+
+        _activityManager.ActivityStateChanged -= OnActivityChangedForSave;
+        _combatManager.CombatStarted -= ScheduleSave;
+        _combatManager.CombatStopped -= ScheduleSave;
+        _activityManager = null;
+        _combatManager = null;
     }
 
     public void ResumeSavedSkillingActivity(
@@ -126,6 +157,7 @@ public class Game
         Player.EquipmentChanged += ScheduleSave;
         Player.AutoEatSettingsChanged += ScheduleSave;
         Player.CollectionLog.CollectionChanged += ScheduleSave;
+        Player.LuckiestDropChanged += ScheduleSave;
 
         HasStarted = false;
         OfflineTicks = 0;
@@ -232,7 +264,10 @@ public class Game
             return;
 
         int startingLevel = skill.Level;
-        double totalXP = activity.XP * completedActions;
+        double totalXP = CalculateOfflineSkillXP(
+            skill,
+            activity.XP,
+            completedActions);
         skill.AddXP(totalXP);
         skill.RecordAction(completedActions);
 
@@ -267,6 +302,49 @@ public class Game
             pet?.Name,
             startingLevel,
             skill.Level);
+    }
+
+    private static double CalculateOfflineSkillXP(
+        Skill skill,
+        double baseXPPerAction,
+        long actionCount)
+    {
+        if (baseXPPerAction <= 0 || actionCount <= 0)
+            return 0;
+
+        double totalXP = 0;
+        double currentXP = skill.XP;
+        long remainingActions = actionCount;
+
+        // The bonus is level-dependent. Process only the at-most 99 level
+        // boundaries rather than simulating every idle action individually.
+        while (remainingActions > 0)
+        {
+            int level = ExperienceTable.GetLevel(currentXP);
+            double xpPerAction = baseXPPerAction *
+                CombatRules.GetSkillXpMultiplier(level);
+
+            if (level >= 99)
+            {
+                totalXP += remainingActions * xpPerAction;
+                break;
+            }
+
+            double xpToNextLevel =
+                ExperienceTable.GetXPForLevel(level + 1) - currentXP;
+            long actionsToNextLevel = Math.Max(
+                1,
+                (long)Math.Ceiling(xpToNextLevel / xpPerAction));
+            long actionsAtThisLevel = Math.Min(
+                remainingActions,
+                actionsToNextLevel);
+
+            totalXP += actionsAtThisLevel * xpPerAction;
+            currentXP += actionsAtThisLevel * xpPerAction;
+            remainingActions -= actionsAtThisLevel;
+        }
+
+        return totalXP;
     }
 
     public OfflineSkillingSummary? TakeOfflineSkillingSummary()

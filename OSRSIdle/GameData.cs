@@ -291,8 +291,8 @@ public static class GameData
 
     public static List<SkillActivity> Thieving = new()
     {
-        new SkillActivity { Name = "Pickpocket Villager", Icon = "🧑", RequiredLevel = 1, XP = 12, ActionTime = 3, ItemReward = ItemData.StolenCoins },
-        new SkillActivity { Name = "Steal from Market Stall", Icon = "🏪", RequiredLevel = 20, XP = 55, ActionTime = 5, ItemReward = ItemData.StolenCoins },
+        new SkillActivity { Name = "Pickpocket Villager", Icon = "🧑", RequiredLevel = 1, XP = 12, ActionTime = 3, ItemReward = ItemData.Coins },
+        new SkillActivity { Name = "Steal from Market Stall", Icon = "🏪", RequiredLevel = 20, XP = 55, ActionTime = 5, ItemReward = ItemData.Coins },
         new SkillActivity { Name = "Pilfer Silk Stall", Icon = "🧵", RequiredLevel = 45, XP = 120, ActionTime = 7, ItemReward = ItemData.Silk },
         new SkillActivity { Name = "Crack Palace Chest", Icon = "🗝️", RequiredLevel = 75, XP = 260, ActionTime = 10, ItemReward = ItemData.JeweledRelic }
     };

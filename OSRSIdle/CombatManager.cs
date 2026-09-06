@@ -4,7 +4,7 @@
 // COMBAT MANAGER
 // ================================================================
 
-public class CombatManager
+public class CombatManager : IDisposable
 {
     // ============================================================
     // COMBAT STATE
@@ -347,6 +347,11 @@ public class CombatManager
         LastLoot.Clear();
     }
 
+    public void Dispose()
+    {
+        AbortCombatEncounter();
+    }
+
 
     // ============================================================
     // COMBAT LOOP
@@ -456,15 +461,11 @@ public class CombatManager
                     GetPlayerAttackSpeedTicks());
 
             int enemyAttackTicks =
-                Math.Max(
-                    1,
-                    enemy.Traits.Contains(EnemyTrait.Frenzied)
-                        ? (int)Math.Floor(enemy.AttackSpeedTicks * 0.9)
-                        : enemy.AttackSpeedTicks);
+                CombatRules.GetEnemyAttackSpeedTicks(enemy);
 
 
             double playerAttackMilliseconds =
-                Player.GetAttackSpeedTicks() *
+                playerAttackTicks *
                 GameTickMilliseconds;
 
             double enemyAttackMilliseconds =
@@ -581,9 +582,7 @@ public class CombatManager
             DebugSettings.IsInstakillEnabled ||
             RollAccuracy(
                 Player.GetEffectiveAttackLevel(),
-                enemy.Traits.Contains(EnemyTrait.Armored)
-                    ? (int)Math.Ceiling(enemy.Defense * 1.15)
-                    : enemy.Defense);
+                CombatRules.GetEnemyDefenseLevel(enemy));
 
 
         // --------------------------------------------------------
@@ -612,8 +611,7 @@ public class CombatManager
                 : RollDamage(
                     Player.GetEffectiveStrengthLevel());
 
-        if (enemy.Traits.Contains(EnemyTrait.Armored))
-            damage = Math.Max(1, (int)Math.Floor(damage * 0.85));
+        damage = CombatRules.ReducePlayerDamage(enemy, damage);
 
 
         // --------------------------------------------------------
@@ -710,9 +708,7 @@ public class CombatManager
 
         bool hit =
             RollAccuracy(
-                enemy.Traits.Contains(EnemyTrait.Accurate)
-                    ? (int)Math.Ceiling(enemy.Attack * 1.1)
-                    : enemy.Attack,
+                CombatRules.GetEnemyAccuracyLevel(enemy),
                 Player.GetEffectiveDefenseLevel());
 
 
@@ -750,8 +746,7 @@ public class CombatManager
                 0,
                 Player.CurrentHP - damage);
 
-        if (enemy.Traits.Contains(EnemyTrait.Regenerative))
-            enemy.CurrentHP = Math.Min(enemy.HP, enemy.CurrentHP + Math.Max(1, enemy.HP / 100));
+        CombatRules.ApplyRegeneration(enemy);
 
         TryAutoEat();
 
@@ -878,10 +873,9 @@ public class CombatManager
         int oldLevel = skill.Level;
 
         Enemy? enemy = CurrentEnemy;
-        double bonus = enemy == null
-            ? 0
-            : ProgressionBonuses.CombatXpPercent(Player, enemy) / 100d;
-        skill.AddXP(xp * (1 + bonus));
+        skill.AddXP(enemy == null
+            ? xp
+            : xp * CombatRules.GetCombatXpMultiplier(Player, enemy));
 
         int newLevel = skill.Level;
 
@@ -916,7 +910,11 @@ public class CombatManager
             // Roll drop chance.
             // ----------------------------------------------------
 
-            if (_random.NextDouble() > drop.Chance)
+            double effectiveChance = CombatRules.GetDropChance(
+                Player,
+                drop.Chance);
+
+            if (_random.NextDouble() > effectiveChance)
                 continue;
 
 
@@ -939,14 +937,14 @@ public class CombatManager
                 Player.RecordLuckiestDrop(
                     drop.Item,
                     Player.CollectionLog.GetKillCount(enemy) + 1,
-                    drop.Chance,
+                    effectiveChance,
                     $"{enemy.Name} kills");
 
                 LastLoot.Add(
                     new LootResult(
                         drop.Item,
                         quantity,
-                        drop.Chance,
+                        effectiveChance,
                         drop.Rarity));
             }
         }

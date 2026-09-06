@@ -14,7 +14,8 @@ public class Inventory
 
     public int UsedSlots => Items.Count(entry =>
         entry.Quantity > 0 &&
-        entry.Item.Type != ItemType.Pet);
+        entry.Item.Type != ItemType.Pet &&
+        entry.Item.Type != ItemType.Currency);
 
     public bool IsFull => UsedSlots >= SlotCapacity;
 
@@ -276,7 +277,40 @@ public class Inventory
     public bool CanAddItem(Item item)
     {
         return item.Type == ItemType.Pet ||
+               item.Type == ItemType.Currency ||
                !IsFull;
+    }
+
+    /// <summary>
+    /// Returns whether an item can be removed and another item stored as one
+    /// atomic inventory replacement. This is used when swapping equipment so
+    /// a full inventory cannot silently destroy the old item.
+    /// </summary>
+    public bool CanReplaceItem(Item itemToRemove, Item itemToAdd)
+    {
+        InventoryItem? source = Items.FirstOrDefault(entry =>
+            AreSameStack(itemToRemove, entry.Item));
+
+        if (source == null)
+            return false;
+
+        if (itemToAdd.Type == ItemType.Pet ||
+            AreSameStack(itemToRemove, itemToAdd))
+        {
+            return true;
+        }
+
+        if (Items.Any(entry =>
+                !ReferenceEquals(entry, source) &&
+                AreSameStack(itemToAdd, entry.Item)))
+        {
+            return true;
+        }
+
+        int usedSlotsAfterRemoval = UsedSlots -
+            (source.Quantity == 1 && source.Item.Type != ItemType.Pet ? 1 : 0);
+
+        return usedSlotsAfterRemoval < SlotCapacity;
     }
 
     // Upgraded equipment is reconstructed as a new Item instance each time

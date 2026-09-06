@@ -55,7 +55,7 @@ public partial class CollectionLogView : ContentView
     }
 
     private void OnFightNowClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         if (_selectedEnemy != null)
@@ -114,7 +114,7 @@ public partial class CollectionLogView : ContentView
     }
 
     private void OnHideCompletedToggled(
-        object sender,
+        object? sender,
         ToggledEventArgs e)
     {
         _hideCompleted = e.Value;

@@ -58,7 +58,7 @@ public static partial class EnemyData
 
     private static void AddAreaBosses()
     {
-        AllEnemies.AddRange(
+        EnemyRegistry.AddRange(
             new[]
             {
                 CreateAreaBoss(

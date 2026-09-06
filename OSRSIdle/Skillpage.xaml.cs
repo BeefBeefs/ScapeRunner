@@ -17,7 +17,7 @@ public partial class SkillPage : ContentView
         _skill = skill;
         _activityManager = activityManager;
 
-        _activityManager.XPChanged += OnXPChanged;
+        _activityManager.ActionCompleted += OnXPChanged;
 
         UpdateSkillHeader();
         BuildActivityList();
@@ -25,8 +25,8 @@ public partial class SkillPage : ContentView
 
     public void RefreshDisplay()
     {
-        _activityManager.XPChanged -= OnXPChanged;
-        _activityManager.XPChanged += OnXPChanged;
+        _activityManager.ActionCompleted -= OnXPChanged;
+        _activityManager.ActionCompleted += OnXPChanged;
 
         EnsureTrainingProgressTimer();
         UpdateSkillHeader();
@@ -254,7 +254,8 @@ public partial class SkillPage : ContentView
                 EfficiencyLabel = efficiencyLabel,
                 BadgeLabel = badgeLabel,
                 UnlockLabel = unlockLabel,
-                Activity = activity
+                Activity = activity,
+                WasUnlocked = meetsRequiredLevel
             };
             _activityCards[activity] = card;
         }
@@ -278,6 +279,7 @@ public partial class SkillPage : ContentView
             if (_activityCards.TryGetValue(activity, out ActivityCardUI? card))
             {
                 bool unlocked = _skill.Level >= activity.RequiredLevel;
+                bool newlyUnlocked = unlocked && !card.WasUnlocked;
                 UpdateActivityMetrics(card, unlocked);
 
                 bool isTraining = _activityManager.CurrentActivity == activity;
@@ -294,6 +296,11 @@ public partial class SkillPage : ContentView
                         : Color.FromArgb("#555555");
                 card.TrainingProgress.IsVisible = isTraining;
                 UpdateTrainingProgress(card);
+
+                if (newlyUnlocked)
+                    _ = PlayUnlockAnimationAsync(card);
+
+                card.WasUnlocked = unlocked;
             }
         }
     }
@@ -483,6 +490,36 @@ public partial class SkillPage : ContentView
         }
     }
 
+    private static async Task PlayUnlockAnimationAsync(ActivityCardUI card)
+    {
+        try
+        {
+            Brush? originalStroke = card.Panel.Stroke;
+            card.Panel.Stroke = Color.FromArgb("#FFE26A");
+            card.UnlockLabel.Text = "✦ UNLOCKED!";
+            card.UnlockLabel.TextColor = Color.FromArgb("#FFE26A");
+            card.UnlockLabel.Opacity = 0;
+            card.UnlockLabel.IsVisible = true;
+
+            await Task.WhenAll(
+                card.Panel.ScaleToAsync(1.06, 180, Easing.CubicOut),
+                card.UnlockLabel.FadeToAsync(1, 180, Easing.CubicOut));
+            await Task.WhenAll(
+                card.Panel.ScaleToAsync(1, 220, Easing.CubicInOut),
+                card.UnlockLabel.FadeToAsync(0, 420, Easing.CubicIn));
+
+            card.Panel.Stroke = originalStroke;
+            card.UnlockLabel.IsVisible = false;
+            card.UnlockLabel.Text = string.Empty;
+        }
+        catch
+        {
+            card.Panel.Scale = 1;
+            card.UnlockLabel.IsVisible = false;
+            card.UnlockLabel.Text = string.Empty;
+        }
+    }
+
     // ============================================================
     // START ACTIVITY
     // ============================================================
@@ -507,7 +544,7 @@ public partial class SkillPage : ContentView
 
         if (Handler == null)
         {
-            _activityManager.XPChanged -=
+            _activityManager.ActionCompleted -=
                 OnXPChanged;
 
             if (_trainingProgressTimer != null)
@@ -530,5 +567,6 @@ public partial class SkillPage : ContentView
         public required Label EfficiencyLabel { get; init; }
         public required Label BadgeLabel { get; init; }
         public required Label UnlockLabel { get; init; }
+        public bool WasUnlocked { get; set; }
     }
 }

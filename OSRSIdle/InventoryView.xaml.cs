@@ -103,7 +103,7 @@ public partial class InventoryView : ContentView
     // ============================================================
 
     private void OnSortNameClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetSortMode(
@@ -116,7 +116,7 @@ public partial class InventoryView : ContentView
     // ============================================================
 
     private void OnSortQuantityClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetSortMode(
@@ -129,7 +129,7 @@ public partial class InventoryView : ContentView
     // ============================================================
 
     private void OnSortValueClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetSortMode(
@@ -171,7 +171,7 @@ public partial class InventoryView : ContentView
     // ============================================================
 
     private void OnSortDirectionClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         _sortAscending =
@@ -229,27 +229,32 @@ public partial class InventoryView : ContentView
         UpdateInventory();
     }
 
+    public void Dispose()
+    {
+        _inventory.InventoryChanged -= OnInventoryChanged;
+    }
+
 
     // ============================================================
     // CATEGORY TABS
     // ============================================================
 
     private void OnEquipmentTabClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetCategory(InventoryCategory.Equipment);
     }
 
     private void OnFoodTabClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetCategory(InventoryCategory.Food);
     }
 
     private void OnJunkTabClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SetCategory(InventoryCategory.Junk);
@@ -333,7 +338,7 @@ public partial class InventoryView : ContentView
     }
 
     private void OnBuyInventorySlotClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         if (_inventory.TryPurchaseNextSlot())
@@ -362,7 +367,7 @@ public partial class InventoryView : ContentView
     // UPDATE INVENTORY
     // ============================================================
 
-    private void UpdateInventory()
+    private void UpdateInventory(Item? combineResult = null)
     {
         UpdateInventoryCapacity();
         UpdateSellJunkButton();
@@ -525,6 +530,12 @@ public partial class InventoryView : ContentView
                 itemSlot,
                 column,
                 row);
+
+            if (combineResult != null &&
+                ReferenceEquals(sortedItems[index].Item, combineResult))
+            {
+                _ = PlayCombineAnimationAsync(itemSlot);
+            }
         }
     }
 
@@ -567,15 +578,15 @@ public partial class InventoryView : ContentView
     }
 
     private void OnSellJunkClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         SellJunk(BulkSellMode.All);
     }
 
-    private void OnSellOneJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.One);
-    private void OnSellTenJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.Ten);
-    private void OnSellHalfJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.Half);
+    private void OnSellOneJunkClicked(object? sender, EventArgs e) => SellJunk(BulkSellMode.One);
+    private void OnSellTenJunkClicked(object? sender, EventArgs e) => SellJunk(BulkSellMode.Ten);
+    private void OnSellHalfJunkClicked(object? sender, EventArgs e) => SellJunk(BulkSellMode.Half);
 
     private enum BulkSellMode { One, Ten, Half, All }
 
@@ -725,7 +736,38 @@ public partial class InventoryView : ContentView
                 DropRarity.SuperRare => Color.FromArgb("#FFD24A"),
                 DropRarity.MegaRare => Color.FromArgb("#FF6868"),
                 _ => Color.FromArgb("#D99032")
-            };
+        };
+    }
+
+    private static async Task PlayCombineAnimationAsync(Border itemSlot)
+    {
+        if (itemSlot.Parent == null)
+            return;
+
+        double originalScale = itemSlot.Scale;
+        double originalOpacity = itemSlot.Opacity;
+
+        try
+        {
+            itemSlot.Scale = 0.78;
+            itemSlot.Opacity = 0.55;
+
+            await Task.WhenAll(
+                itemSlot.FadeToAsync(originalOpacity, 130, Easing.CubicOut),
+                itemSlot.ScaleToAsync(1.16, 190, Easing.CubicOut));
+
+            await itemSlot.ScaleToAsync(originalScale, 150, Easing.CubicInOut);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Combine animation failed: {exception}");
+        }
+        finally
+        {
+            itemSlot.Scale = originalScale;
+            itemSlot.Opacity = originalOpacity;
+        }
     }
 
 
@@ -787,13 +829,16 @@ public partial class InventoryView : ContentView
         {
             if (_inventory.TryCombineEquipment(item, out Item upgradedItem))
             {
+                UpdateInventory(upgradedItem);
                 await CustomDialogService.ShowAsync(
                     "Equipment combined",
                     $"Your {item.Name} became {upgradedItem.Name}.",
                     "OK");
             }
-
-            UpdateInventory();
+            else
+            {
+                UpdateInventory();
+            }
             return;
         }
 
@@ -801,6 +846,8 @@ public partial class InventoryView : ContentView
         {
             if (_inventory.TryCombineAllEquipment(item, out EquipmentCombineAllResult result))
             {
+                Item? animationItem = result.CreatedStacks.LastOrDefault()?.Item;
+                UpdateInventory(animationItem);
                 string createdItems = string.Join(
                     ", ",
                     result.CreatedStacks.Select(stack =>
@@ -814,13 +861,13 @@ public partial class InventoryView : ContentView
             }
             else
             {
+                UpdateInventory();
                 await CustomDialogService.ShowAsync(
                     "Unable to combine all",
                     "Free an inventory slot, then try again.",
                     "OK");
             }
 
-            UpdateInventory();
             return;
         }
 

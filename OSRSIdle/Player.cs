@@ -227,11 +227,17 @@ public class Player
             return false;
         }
 
-        if (!Inventory.RemoveItem(item))
-            return false;
-
         Item? previouslyEquipped =
             GetEquippedItem(item.EquipmentSlot);
+
+        if (previouslyEquipped != null &&
+            !Inventory.CanReplaceItem(item, previouslyEquipped))
+        {
+            return false;
+        }
+
+        if (!Inventory.RemoveItem(item))
+            return false;
 
         SetEquippedItem(
             item.EquipmentSlot,
@@ -239,7 +245,9 @@ public class Player
 
         if (previouslyEquipped != null)
         {
-            Inventory.AddItem(previouslyEquipped);
+            // CanReplaceItem above guarantees this succeeds without losing
+            // the previously equipped item.
+            _ = Inventory.AddItem(previouslyEquipped);
         }
 
         CurrentHP =
@@ -424,6 +432,20 @@ public class Player
             EquipmentSlot.Food => EquippedFood,
             _ => null
         };
+    }
+
+    public void ClearEquippedItems()
+    {
+        EquippedHead = null;
+        EquippedBody = null;
+        EquippedLegs = null;
+        EquippedWeapon = null;
+        EquippedShield = null;
+        EquippedGloves = null;
+        EquippedBoots = null;
+        EquippedAmulet = null;
+        EquippedRing = null;
+        EquippedFood = null;
     }
 
     public IEnumerable<Skill> GetAllSkills()

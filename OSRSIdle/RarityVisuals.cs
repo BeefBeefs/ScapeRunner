@@ -84,7 +84,7 @@ public static class RarityVisuals
         farSparkle.TranslationY = size * 0.06;
         visual.Children.Add(farSparkle);
 
-        StartPulse(glow, nearSparkle, farSparkle, rarity);
+        StartPulse(visual, glow, nearSparkle, farSparkle, rarity);
         return visual;
     }
 
@@ -130,13 +130,43 @@ public static class RarityVisuals
     }
 
     private static void StartPulse(
+        Grid visual,
         Border glow,
         Label nearSparkle,
         Label farSparkle,
         DropRarity rarity)
     {
         uint duration = rarity >= DropRarity.MegaRare ? 780u : 1200u;
+        bool running = true;
 
+        // Item visuals are frequently rebuilt as virtualized lists recycle
+        // cells. Stop the animation as soon as the visual leaves the visual
+        // tree so detached cells do not retain an endless animation callback.
+        void OnHandlerChanged(object? sender, EventArgs args)
+        {
+            if (visual.Handler == null)
+            {
+                StopPulse(glow, nearSparkle, farSparkle);
+                running = false;
+            }
+            else if (!running)
+            {
+                CommitPulse(glow, nearSparkle, farSparkle, rarity, duration);
+                running = true;
+            }
+        }
+
+        visual.HandlerChanged += OnHandlerChanged;
+        CommitPulse(glow, nearSparkle, farSparkle, rarity, duration);
+    }
+
+    private static void CommitPulse(
+        Border glow,
+        Label nearSparkle,
+        Label farSparkle,
+        DropRarity rarity,
+        uint duration)
+    {
         new Animation
         {
             { 0.0, 0.5, new Animation(value => glow.Opacity = value, 0.18, GetGlowOpacity(rarity)) },
@@ -154,6 +184,16 @@ public static class RarityVisuals
             { 0.0, 0.5, new Animation(value => farSparkle.Opacity = value, 0.65, 0.1) },
             { 0.5, 1.0, new Animation(value => farSparkle.Opacity = value, 0.1, 0.65) }
         }.Commit(farSparkle, "raritySparkleFar", 16, duration + 180, Easing.SinInOut, repeat: () => true);
+    }
+
+    private static void StopPulse(
+        Border glow,
+        Label nearSparkle,
+        Label farSparkle)
+    {
+        glow.AbortAnimation("rarityGlow");
+        nearSparkle.AbortAnimation("raritySparkle");
+        farSparkle.AbortAnimation("raritySparkleFar");
     }
 
     private static double GetGlowOpacity(DropRarity rarity) => rarity switch

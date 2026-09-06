@@ -2112,7 +2112,7 @@ public partial class CombatView : ContentView
     }
 
     private void OnFightAgainClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         if (_lastEnemy == null)
@@ -2192,7 +2192,7 @@ public partial class CombatView : ContentView
 
 
     private void OnEnemySelectClicked(
-        object sender,
+        object? sender,
         EventArgs e)
     {
         DisableAutoFight();
@@ -2238,7 +2238,7 @@ public partial class CombatView : ContentView
     }
 
     private void OnAutoFightClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         if (_autoFightEnabled)
@@ -2411,7 +2411,7 @@ public partial class CombatView : ContentView
     }
 
     private void OnStopCombatClicked(
-    object sender,
+    object? sender,
     EventArgs e)
     {
         DisableAutoFight();

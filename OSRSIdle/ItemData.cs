@@ -103,7 +103,6 @@ public static partial class ItemData
     public static Item YewLogs = new Item { Name = "Yew Logs", Icon = "🪵", Value = 90, Type = ItemType.Material };
     public static Item MagicLogs = new Item { Name = "Magic Logs", Icon = "🪵", Value = 180, Type = ItemType.Material };
 
-    public static Item StolenCoins = new Item { Name = "Stolen Coins", Icon = "🪙", Value = 15, Type = ItemType.Currency };
     public static Item Silk = new Item { Name = "Silk", Icon = "🧵", Value = 40, Type = ItemType.Material };
     public static Item JeweledRelic = new Item { Name = "Jeweled Relic", Icon = "💎", Value = 350, Type = ItemType.Material };
 
@@ -2192,7 +2191,7 @@ public static partial class ItemData
     // ALL ITEMS
     // ============================================================
 
-    public static List<Item> AllItems = new()
+    private static readonly List<Item> ItemRegistry = new()
     {
         // --------------------------------------------------------
         // Basic / Materials
@@ -2228,7 +2227,6 @@ public static partial class ItemData
         YewLogs,
         MagicLogs,
 
-        StolenCoins,
         Silk,
         JeweledRelic,
         Clay,
@@ -2516,13 +2514,15 @@ public static partial class ItemData
         FragmentOfCreation
     };
 
+    public static IReadOnlyList<Item> AllItems { get; private set; } = Array.Empty<Item>();
+
     static ItemData()
     {
-        AllItems.AddRange(GetEquipmentExpansionItems());
-        AllItems.AddRange(GetEquipmentExpansionTwoItems());
-        AllItems.AddRange(GetAreaBossItems());
+        ItemRegistry.AddRange(GetEquipmentExpansionItems());
+        ItemRegistry.AddRange(GetEquipmentExpansionTwoItems());
+        ItemRegistry.AddRange(GetAreaBossItems());
 
-        foreach (Item item in AllItems)
+        foreach (Item item in ItemRegistry)
         {
             item.IsJunk = item.Type == ItemType.Material;
             item.Description = NeedsRealDescription(item.Description)
@@ -2530,7 +2530,7 @@ public static partial class ItemData
                 : item.Description;
         }
 
-        foreach (Item item in AllItems.Where(item =>
+        foreach (Item item in ItemRegistry.Where(item =>
                      item.Type == ItemType.Equipment &&
                      item.EquipmentSlot != EquipmentSlot.None))
         {
@@ -2555,6 +2555,10 @@ public static partial class ItemData
                     GetRequiredEquipmentLevel(armorPower, 0.9);
             }
         }
+
+        // Publish a read-only snapshot after generated items and derived
+        // metadata have been applied.
+        AllItems = Array.AsReadOnly(ItemRegistry.ToArray());
     }
 
     private static string CreateItemDescription(Item item)

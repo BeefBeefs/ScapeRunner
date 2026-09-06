@@ -4,6 +4,7 @@ namespace OSRSIdle;
 
 public static class SaveManager
 {
+    private const int CurrentSaveVersion = 1;
     private const string SaveFileName = "osrsidle-save.json";
     private const string BackupFileName = "osrsidle-save.backup.json";
 
@@ -41,6 +42,20 @@ public static class SaveManager
     }
 
     public static PlayerSaveData CreateSaveData(
+        Player player,
+        OfflineActivitySaveData? activeActivity = null,
+        string lastCombatStyle = "Attack")
+    {
+        lock (SaveFileLock)
+        {
+            return CreateSaveDataCore(
+                player,
+                activeActivity,
+                lastCombatStyle);
+        }
+    }
+
+    private static PlayerSaveData CreateSaveDataCore(
         Player player,
         OfflineActivitySaveData? activeActivity = null,
         string lastCombatStyle = "Attack")
@@ -88,6 +103,8 @@ public static class SaveManager
 
     private static void WriteSaveData(PlayerSaveData saveData, long requestId)
     {
+        string temporaryPath = SavePath + ".tmp";
+
         try
         {
             string json = JsonSerializer.Serialize(saveData, JsonOptions);
@@ -97,144 +114,176 @@ public static class SaveManager
                 if (requestId < _lastWrittenRequest)
                     return;
 
+                // Write the new snapshot separately, then replace the main
+                // file. A crash during serialization or the write cannot
+                // truncate the last known-good save.
+                File.WriteAllText(temporaryPath, json);
                 if (File.Exists(SavePath))
                     File.Copy(SavePath, BackupPath, true);
-                File.WriteAllText(SavePath, json);
+                File.Move(temporaryPath, SavePath, true);
                 _lastWrittenRequest = requestId;
+                LastError = null;
             }
         }
         catch (Exception exception)
         {
             LastError = $"Save failed: {exception.Message}";
         }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
+            catch
+            {
+                // The next save can clean up a leftover temporary snapshot.
+            }
+        }
     }
 
     public static OfflineProgressLoadResult Load(Player player)
     {
-        try
+        LastError = null;
+        RecoveredFromBackup = false;
+
+        lock (SaveFileLock)
         {
-            if (!File.Exists(SavePath))
+            if (!File.Exists(SavePath) && !File.Exists(BackupPath))
                 return OfflineProgressLoadResult.None;
 
-            string json = File.ReadAllText(SavePath);
-
-            PlayerSaveData? saveData = JsonSerializer.Deserialize<PlayerSaveData>(
-                json,
-                JsonOptions);
-
-            if (saveData == null || saveData.Version != 1)
-                return OfflineProgressLoadResult.None;
-
-            foreach (Skill skill in player.GetAllSkills())
-            {
-                if (saveData.SkillXP.TryGetValue(skill.Name, out double xp))
-                {
-                    skill.RestoreXP(xp);
-                }
-
-                if (saveData.SkillActions.TryGetValue(skill.Name, out long actions))
-                {
-                    skill.RestoreActions(actions);
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(saveData.CharacterName))
-            {
-                player.Name = saveData.CharacterName.Trim();
-            }
-
-            player.PortraitIndex = PlayerPortraits.NormalizeIndex(
-                saveData.CharacterPortraitIndex);
-            player.RestoreAutoEatThresholdPercent(
-                saveData.AutoEatThresholdPercent);
-
-            player.Inventory.Clear();
-
-            int savedSlotCapacity = Math.Max(
-                Inventory.StartingSlotCapacity,
-                saveData.InventorySlots);
-
-            int occupiedSavedSlots = saveData.Inventory.Count(entry =>
-                entry.Quantity > 0 &&
-                FindItem(entry.ItemName)?.Type != ItemType.Pet);
-
-            // Older saves used unlimited inventory. Preserve every saved item
-            // by expanding capacity only as far as that existing save requires.
-            player.Inventory.RestoreSlotCapacity(
-                Math.Max(savedSlotCapacity, occupiedSavedSlots));
-
-            foreach (InventorySaveItem entry in saveData.Inventory)
-            {
-                Item? item = RestoreUpgrade(FindItem(entry.ItemName), entry.UpgradeLevel);
-
-                if (item != null && entry.Quantity > 0)
-                {
-                    player.Inventory.AddItem(item, entry.Quantity);
-                }
-            }
-
-            foreach (EquipmentSlot slot in Enum.GetValues<EquipmentSlot>())
-            {
-                if (slot == EquipmentSlot.None)
-                    continue;
-
-                saveData.Equipment.TryGetValue(
-                    slot.ToString(),
-                    out string? itemName);
-
-                Item? item = string.IsNullOrWhiteSpace(itemName)
-                    ? null
-                    : FindItem(itemName);
-
-                item = RestoreUpgrade(item, ParseUpgradeLevel(itemName));
-
-                if (item == null ||
-                    (slot != EquipmentSlot.Food &&
-                     item.EquipmentSlot != slot) ||
-                    (slot == EquipmentSlot.Food && item.Type != ItemType.Food))
-                {
-                    continue;
-                }
-
-                player.RestoreEquippedItem(slot, item);
-            }
-
-            player.CurrentHP = Math.Clamp(
-                saveData.CurrentHP,
-                0,
-                player.GetMaxHP());
-
-            player.CollectionLog.RestoreSaveData(saveData.CollectionLog);
-            player.RestoreLuckiestDrop(saveData.LuckiestDrop);
-
-            return new OfflineProgressLoadResult(
-                GetElapsedTicks(saveData.SavedAtUtc),
-                saveData.ActiveActivity,
-                saveData.LastCombatStyle);
-        }
-        catch (Exception exception)
-        {
-            LastError = $"Save could not be loaded: {exception.Message}";
             try
             {
-                if (File.Exists(BackupPath))
-                {
-                    string backupJson = File.ReadAllText(BackupPath);
-                    PlayerSaveData? backup = JsonSerializer.Deserialize<PlayerSaveData>(backupJson, JsonOptions);
-                    if (backup != null && backup.Version == 1)
-                    {
-                        File.Copy(BackupPath, SavePath, true);
-                        RecoveredFromBackup = true;
-                        return Load(player);
-                    }
-                }
+                PlayerSaveData? saveData = ReadSaveData(SavePath);
+                if (saveData == null)
+                    throw new InvalidDataException("The primary save is invalid.");
+
+                return ApplySaveData(player, saveData);
+            }
+            catch (Exception exception)
+            {
+                LastError = $"Save could not be loaded: {exception.Message}";
+            }
+
+            try
+            {
+                PlayerSaveData? backup = ReadSaveData(BackupPath);
+                if (backup == null)
+                    throw new InvalidDataException("The backup save is invalid.");
+
+                File.Copy(BackupPath, SavePath, true);
+                RecoveredFromBackup = true;
+                LastError = null;
+                return ApplySaveData(player, backup);
             }
             catch (Exception backupException)
             {
-                LastError += $" Backup recovery failed: {backupException.Message}";
+                LastError = $"Save recovery failed: {backupException.Message}";
             }
+
             return OfflineProgressLoadResult.None;
         }
+    }
+
+    private static PlayerSaveData? ReadSaveData(string path)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        PlayerSaveData? saveData = JsonSerializer.Deserialize<PlayerSaveData>(
+            File.ReadAllText(path),
+            JsonOptions);
+
+        return saveData?.Version == CurrentSaveVersion
+            ? saveData
+            : null;
+    }
+
+    private static OfflineProgressLoadResult ApplySaveData(
+        Player player,
+        PlayerSaveData saveData)
+    {
+        foreach (Skill skill in player.GetAllSkills())
+        {
+            if (saveData.SkillXP.TryGetValue(skill.Name, out double xp))
+                skill.RestoreXP(xp);
+
+            if (saveData.SkillActions.TryGetValue(skill.Name, out long actions))
+                skill.RestoreActions(actions);
+        }
+
+        if (!string.IsNullOrWhiteSpace(saveData.CharacterName))
+            player.Name = saveData.CharacterName.Trim();
+
+        player.PortraitIndex = PlayerPortraits.NormalizeIndex(
+            saveData.CharacterPortraitIndex);
+        player.RestoreAutoEatThresholdPercent(
+            saveData.AutoEatThresholdPercent);
+
+        player.Inventory.Clear();
+
+        int savedSlotCapacity = Math.Max(
+            Inventory.StartingSlotCapacity,
+            saveData.InventorySlots);
+
+        int occupiedSavedSlots = saveData.Inventory.Count(entry =>
+            entry.Quantity > 0 &&
+            FindItem(entry.ItemName)?.Type is not
+                (ItemType.Pet or ItemType.Currency));
+
+        player.Inventory.RestoreSlotCapacity(
+            Math.Max(savedSlotCapacity, occupiedSavedSlots));
+
+        foreach (InventorySaveItem entry in saveData.Inventory)
+        {
+            Item? item = RestoreUpgrade(
+                FindItem(entry.ItemName),
+                entry.UpgradeLevel);
+
+            if (item != null && entry.Quantity > 0)
+                player.Inventory.AddItem(item, entry.Quantity);
+        }
+
+        player.ClearEquippedItems();
+
+        foreach (EquipmentSlot slot in Enum.GetValues<EquipmentSlot>())
+        {
+            if (slot == EquipmentSlot.None)
+                continue;
+
+            saveData.Equipment.TryGetValue(
+                slot.ToString(),
+                out string? itemName);
+
+            Item? item = string.IsNullOrWhiteSpace(itemName)
+                ? null
+                : FindItem(itemName);
+
+            item = RestoreUpgrade(item, ParseUpgradeLevel(itemName));
+
+            if (item == null ||
+                (slot != EquipmentSlot.Food && item.EquipmentSlot != slot) ||
+                (slot == EquipmentSlot.Food && item.Type != ItemType.Food))
+            {
+                continue;
+            }
+
+            player.RestoreEquippedItem(slot, item);
+        }
+
+        player.CurrentHP = Math.Clamp(
+            saveData.CurrentHP,
+            0,
+            player.GetMaxHP());
+
+        player.CollectionLog.RestoreSaveData(saveData.CollectionLog);
+        player.RestoreLuckiestDrop(saveData.LuckiestDrop);
+
+        return new OfflineProgressLoadResult(
+            GetElapsedTicks(saveData.SavedAtUtc),
+            saveData.ActiveActivity,
+            saveData.LastCombatStyle);
     }
 
     public static long GetElapsedTicks(DateTime savedAtUtc)
@@ -259,7 +308,7 @@ public static class SaveManager
 
         try
         {
-            if (!File.Exists(SavePath))
+            if (!File.Exists(SavePath) && !File.Exists(BackupPath))
             {
                 return new SavePreview(
                     freshPlayer.Name,
@@ -273,11 +322,35 @@ public static class SaveManager
                     default);
             }
 
-            PlayerSaveData? saveData = JsonSerializer.Deserialize<PlayerSaveData>(
-                File.ReadAllText(SavePath),
-                JsonOptions);
+            PlayerSaveData? saveData;
+            lock (SaveFileLock)
+            {
+                try
+                {
+                    saveData = ReadSaveData(SavePath);
+                }
+                catch
+                {
+                    saveData = null;
+                }
 
-            if (saveData == null || saveData.Version != 1)
+                if (saveData == null)
+                {
+                    try
+                    {
+                        saveData = ReadSaveData(BackupPath);
+                    }
+                    catch
+                    {
+                        saveData = null;
+                    }
+
+                    if (saveData != null)
+                        RecoveredFromBackup = true;
+                }
+            }
+
+            if (saveData == null)
                 throw new InvalidDataException();
 
             int skillTotal = freshPlayer.GetAllSkills()
@@ -353,6 +426,11 @@ public static class SaveManager
         if (marker >= 0 && int.TryParse(itemName[(marker + 2)..], out _))
             baseName = itemName[..marker];
 
+        // Stolen Coins was replaced by stackable regular Coins. Resolve the
+        // old name so existing character saves are upgraded on load.
+        if (string.Equals(baseName, "Stolen Coins", StringComparison.Ordinal))
+            return ItemData.Coins;
+
         return StartupDataCache.FindItem(baseName);
     }
 
@@ -380,16 +458,32 @@ public static class SaveManager
 
     public static void DeleteSave()
     {
-        try
+        lock (SaveFileLock)
         {
-            if (File.Exists(SavePath))
+            // Invalidate any already queued async write before removing the
+            // files. Otherwise a delayed save could resurrect a reset
+            // character after this method returns.
+            _lastWrittenRequest = Interlocked.Increment(ref _nextSaveRequest);
+
+            try
             {
-                File.Delete(SavePath);
+                if (File.Exists(SavePath))
+                    File.Delete(SavePath);
+
+                if (File.Exists(BackupPath))
+                    File.Delete(BackupPath);
+
+                string temporaryPath = SavePath + ".tmp";
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+
+                LastError = null;
+                RecoveredFromBackup = false;
             }
-        }
-        catch
-        {
-            // Reset remains safe even if the platform has already removed it.
+            catch (Exception exception)
+            {
+                LastError = $"Save deletion failed: {exception.Message}";
+            }
         }
     }
 
@@ -397,35 +491,57 @@ public static class SaveManager
         string? characterName = null,
         int? portraitIndex = null)
     {
-        try
+        long requestId = CreateSaveRequest();
+
+        lock (SaveFileLock)
         {
-            PlayerSaveData saveData = File.Exists(SavePath)
-                ? JsonSerializer.Deserialize<PlayerSaveData>(
-                    File.ReadAllText(SavePath),
-                    JsonOptions) ?? new PlayerSaveData()
-                : new PlayerSaveData();
-
-            if (saveData.Version != 1)
-                return;
-
-            if (!string.IsNullOrWhiteSpace(characterName))
+            try
             {
-                saveData.CharacterName = characterName.Trim();
-            }
+                PlayerSaveData saveData;
+                if (File.Exists(SavePath))
+                {
+                    try
+                    {
+                        saveData = ReadSaveData(SavePath)
+                            ?? throw new InvalidDataException(
+                                "The existing save is invalid.");
+                    }
+                    catch when (File.Exists(BackupPath))
+                    {
+                        saveData = ReadSaveData(BackupPath)
+                            ?? throw new InvalidDataException(
+                                "The backup save is invalid.");
+                        File.Copy(BackupPath, SavePath, true);
+                        RecoveredFromBackup = true;
+                    }
+                }
+                else if (File.Exists(BackupPath))
+                {
+                    saveData = ReadSaveData(BackupPath)
+                        ?? throw new InvalidDataException(
+                            "The backup save is invalid.");
+                }
+                else
+                {
+                    saveData = new PlayerSaveData();
+                }
 
-            if (portraitIndex.HasValue)
+                if (!string.IsNullOrWhiteSpace(characterName))
+                    saveData.CharacterName = characterName.Trim();
+
+                if (portraitIndex.HasValue)
+                {
+                    saveData.CharacterPortraitIndex =
+                        PlayerPortraits.NormalizeIndex(portraitIndex.Value);
+                }
+
+                // Use the same ordered, atomic write path as gameplay saves.
+                WriteSaveData(saveData, requestId);
+            }
+            catch (Exception exception)
             {
-                saveData.CharacterPortraitIndex =
-                    PlayerPortraits.NormalizeIndex(portraitIndex.Value);
+                LastError = $"Profile update failed: {exception.Message}";
             }
-
-            File.WriteAllText(
-                SavePath,
-                JsonSerializer.Serialize(saveData, JsonOptions));
-        }
-        catch
-        {
-            // Profile edits must never discard the existing save.
         }
     }
 }

@@ -22,13 +22,19 @@ public partial class SkillsView : ContentView
         _player = player;
         _activityManager = activityManager;
 
-        _activityManager.XPChanged +=
+        _activityManager.ActionCompleted +=
             OnXPChanged;
 
-        _activityManager.ActivityChanged +=
+        _activityManager.ActivityStateChanged +=
             OnActivityChanged;
 
         BuildSkillList();
+    }
+
+    public void Dispose()
+    {
+        _activityManager.ActionCompleted -= OnXPChanged;
+        _activityManager.ActivityStateChanged -= OnActivityChanged;
     }
 
     // ============================================================
@@ -213,10 +219,10 @@ public partial class SkillsView : ContentView
 
     public void RefreshDisplay()
     {
-        _activityManager.XPChanged -= OnXPChanged;
-        _activityManager.XPChanged += OnXPChanged;
-        _activityManager.ActivityChanged -= OnActivityChanged;
-        _activityManager.ActivityChanged += OnActivityChanged;
+        _activityManager.ActionCompleted -= OnXPChanged;
+        _activityManager.ActionCompleted += OnXPChanged;
+        _activityManager.ActivityStateChanged -= OnActivityChanged;
+        _activityManager.ActivityStateChanged += OnActivityChanged;
         UpdateSkillUI();
     }
 
@@ -387,10 +393,10 @@ public partial class SkillsView : ContentView
 
         if (Handler == null)
         {
-            _activityManager.XPChanged -=
+            _activityManager.ActionCompleted -=
                 OnXPChanged;
 
-            _activityManager.ActivityChanged -=
+            _activityManager.ActivityStateChanged -=
                 OnActivityChanged;
         }
     }

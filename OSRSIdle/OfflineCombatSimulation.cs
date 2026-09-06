@@ -85,7 +85,7 @@ public sealed class OfflineCombatSimulation
         _enemyElapsedTicks = Math.Clamp(
             savedActivity.EnemyAttackProgress,
             0,
-            1) * Math.Max(1, Enemy.AttackSpeedTicks);
+            1) * CombatRules.GetEnemyAttackSpeedTicks(Enemy);
 
         _autoEatCooldownTicks = Math.Max(
             0,
@@ -94,33 +94,71 @@ public sealed class OfflineCombatSimulation
 
     public void Advance(long ticks)
     {
-        for (long tick = 0; tick < ticks && !IsComplete; tick++)
-        {
-            TicksProcessed++;
+        long remainingTicks = Math.Max(0, ticks);
 
+        while (remainingTicks > 0 && !IsComplete)
+        {
             if (IsRespawning)
             {
-                AdvanceRespawn();
+                long respawnTicks = Math.Min(
+                    remainingTicks,
+                    Math.Max(1, RespawnTicksRemaining));
+
+                TicksProcessed += respawnTicks;
+                remainingTicks -= respawnTicks;
+                RespawnTicksRemaining -= (int)respawnTicks;
+
+                if (RespawnTicksRemaining > 0)
+                    continue;
+
+                IsRespawning = false;
+                Enemy.CurrentHP = Enemy.HP;
+                _playerElapsedTicks = 0;
+                _enemyElapsedTicks = 0;
                 continue;
             }
 
-            _playerElapsedTicks++;
-            _enemyElapsedTicks++;
+            int playerAttackTicks = Math.Max(1, _player.GetAttackSpeedTicks());
+            int enemyAttackTicks = CombatRules.GetEnemyAttackSpeedTicks(Enemy);
 
-            AdvanceAutoEatTick();
+            long ticksToPlayerAttack = TicksUntilBoundary(
+                playerAttackTicks,
+                _playerElapsedTicks);
+            long ticksToEnemyAttack = TicksUntilBoundary(
+                enemyAttackTicks,
+                _enemyElapsedTicks);
 
-            if (_playerElapsedTicks >= _player.GetAttackSpeedTicks())
+            long ticksToAutoEat = GetTicksUntilAutoEat();
+            long ticksThisStep = Math.Min(
+                remainingTicks,
+                Math.Min(
+                    ticksToPlayerAttack,
+                    Math.Min(ticksToEnemyAttack, ticksToAutoEat)));
+
+            // There is always at least one future event while combat is
+            // active, but keep this guard defensive against future changes.
+            if (ticksThisStep <= 0)
+                ticksThisStep = 1;
+
+            _playerElapsedTicks += ticksThisStep;
+            _enemyElapsedTicks += ticksThisStep;
+            TicksProcessed += ticksThisStep;
+            remainingTicks -= ticksThisStep;
+
+            AdvanceAutoEatTicks(ticksThisStep);
+
+            if (_playerElapsedTicks >= playerAttackTicks)
             {
-                _playerElapsedTicks -= _player.GetAttackSpeedTicks();
+                _playerElapsedTicks -= playerAttackTicks;
                 PerformPlayerAttack();
 
                 if (IsComplete || IsRespawning)
                     continue;
             }
 
-            if (_enemyElapsedTicks >= Enemy.AttackSpeedTicks)
+            if (_enemyElapsedTicks >= enemyAttackTicks)
             {
-                _enemyElapsedTicks -= Enemy.AttackSpeedTicks;
+                _enemyElapsedTicks -= enemyAttackTicks;
                 PerformEnemyAttack();
             }
         }
@@ -137,46 +175,72 @@ public sealed class OfflineCombatSimulation
             .ToList();
     }
 
-    private void AdvanceRespawn()
+    private static long TicksUntilBoundary(
+        int boundary,
+        double elapsed)
     {
-        RespawnTicksRemaining--;
+        return Math.Max(
+            1,
+            (long)Math.Ceiling(boundary - elapsed));
+    }
 
-        if (RespawnTicksRemaining > 0)
-            return;
+    private long GetTicksUntilAutoEat()
+    {
+        if (_autoEatCooldownTicks > 0)
+            return _autoEatCooldownTicks;
 
-        IsRespawning = false;
-        Enemy.CurrentHP = Enemy.HP;
-        _playerElapsedTicks = 0;
-        _enemyElapsedTicks = 0;
+        return _player.ShouldAutoEat() &&
+               _player.EquippedFood != null
+            ? 1
+            : long.MaxValue;
+    }
+
+    private void AdvanceAutoEatTicks(long ticks)
+    {
+        if (_autoEatCooldownTicks > 0)
+        {
+            _autoEatCooldownTicks = Math.Max(
+                0,
+                _autoEatCooldownTicks - (int)Math.Min(ticks, int.MaxValue));
+        }
+
+        if (_autoEatCooldownTicks == 0)
+            TryAutoEat();
     }
 
     private void PerformPlayerAttack()
     {
         if (!DebugSettings.IsInstakillEnabled &&
-            !RollAccuracy(_player.GetEffectiveAttackLevel(), Enemy.Defense))
+            !RollAccuracy(
+                _player.GetEffectiveAttackLevel(),
+                CombatRules.GetEnemyDefenseLevel(Enemy)))
             return;
 
         int damage = DebugSettings.IsInstakillEnabled
             ? Enemy.CurrentHP
-            : RollDamage(_player.GetEffectiveStrengthLevel());
+            : CombatRules.ReducePlayerDamage(
+                Enemy,
+                RollDamage(_player.GetEffectiveStrengthLevel()));
 
         Enemy.CurrentHP = Math.Max(0, Enemy.CurrentHP - damage);
-        _player.HP.AddXP(damage);
-        HPXPGranted += damage;
+        double xpMultiplier = CombatRules.GetCombatXpMultiplier(_player, Enemy);
+        double hpXP = damage * xpMultiplier;
+        _player.HP.AddXP(hpXP);
+        HPXPGranted += hpXP;
 
         switch (_combatStyle)
         {
             case CombatStyle.Attack:
-                _player.Attack.AddXP(damage * 4);
-                StyleXPGranted += damage * 4;
+                _player.Attack.AddXP(damage * 4 * xpMultiplier);
+                StyleXPGranted += damage * 4 * xpMultiplier;
                 break;
             case CombatStyle.Strength:
-                _player.Strength.AddXP(damage * 4);
-                StyleXPGranted += damage * 4;
+                _player.Strength.AddXP(damage * 4 * xpMultiplier);
+                StyleXPGranted += damage * 4 * xpMultiplier;
                 break;
             case CombatStyle.Defense:
-                _player.Defense.AddXP(damage * 4);
-                StyleXPGranted += damage * 4;
+                _player.Defense.AddXP(damage * 4 * xpMultiplier);
+                StyleXPGranted += damage * 4 * xpMultiplier;
                 break;
         }
 
@@ -186,12 +250,16 @@ public sealed class OfflineCombatSimulation
 
     private void PerformEnemyAttack()
     {
-        if (!RollAccuracy(Enemy.Attack, _player.GetEffectiveDefenseLevel()))
+        if (!RollAccuracy(
+                CombatRules.GetEnemyAccuracyLevel(Enemy),
+                _player.GetEffectiveDefenseLevel()))
             return;
 
         int damage = RollDamage(Enemy.Strength);
 
         _player.CurrentHP = Math.Max(0, _player.CurrentHP - damage);
+
+        CombatRules.ApplyRegeneration(Enemy);
 
         TryAutoEat();
 
@@ -208,7 +276,11 @@ public sealed class OfflineCombatSimulation
 
         foreach (Drop drop in Enemy.DropTable.Drops)
         {
-            if (_random.NextDouble() > drop.Chance)
+            double effectiveChance = CombatRules.GetDropChance(
+                _player,
+                drop.Chance);
+
+            if (_random.NextDouble() > effectiveChance)
                 continue;
 
             int quantity = _random.Next(drop.MinQuantity, drop.MaxQuantity + 1);
@@ -222,7 +294,7 @@ public sealed class OfflineCombatSimulation
             _player.RecordLuckiestDrop(
                 drop.Item,
                 _player.CollectionLog.GetKillCount(Enemy) + 1,
-                drop.Chance,
+                effectiveChance,
                 $"{Enemy.Name} kills");
 
             if (!_player.CollectionLog.HasReceivedDrop(Enemy, drop.Item))
@@ -233,7 +305,7 @@ public sealed class OfflineCombatSimulation
             killLoot.Add(new LootResult(
                 drop.Item,
                 quantity,
-                drop.Chance,
+                effectiveChance,
                 drop.Rarity));
 
             Loot.TryGetValue(drop.Item, out long currentQuantity);
@@ -259,16 +331,6 @@ public sealed class OfflineCombatSimulation
             AutoFightRespawnTicks);
         _playerElapsedTicks = 0;
         _enemyElapsedTicks = 0;
-    }
-
-    private void AdvanceAutoEatTick()
-    {
-        if (_autoEatCooldownTicks > 0)
-        {
-            _autoEatCooldownTicks--;
-        }
-
-        TryAutoEat();
     }
 
     private bool TryAutoEat()

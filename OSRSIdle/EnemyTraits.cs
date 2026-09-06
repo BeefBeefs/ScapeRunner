@@ -21,7 +21,9 @@ public static class EnemyTraitRules
             traits.Add(EnemyTrait.Regenerative);
         if (enemy.AttackSpeedTicks <= 4 && enemy.Strength >= 30)
             traits.Add(EnemyTrait.Frenzied);
-        return traits;
+        return traits.Count == 0
+            ? Array.Empty<EnemyTrait>()
+            : Array.AsReadOnly(traits.ToArray());
     }
 
     public static string Name(EnemyTrait trait) => trait switch
@@ -37,8 +39,8 @@ public static class EnemyTraitRules
     {
         EnemyTrait.Armored => "Takes 15% less damage",
         EnemyTrait.Accurate => "Has +10% hit chance",
-        EnemyTrait.Regenerative => "Regains 1% max HP every 10 ticks",
-        EnemyTrait.Frenzied => "Attacks 10% faster",
+        EnemyTrait.Regenerative => "Regains 1% max HP when it lands an attack",
+        EnemyTrait.Frenzied => "Attacks up to 10% faster",
         _ => string.Empty
     };
 

@@ -10,7 +10,7 @@ public static partial class EnemyData
     /// </summary>
     private static void BalanceEquipmentDropRates()
     {
-        foreach (Enemy enemy in AllEnemies)
+        foreach (Enemy enemy in EnemyRegistry)
         {
             int maximumExpectedPower = enemy.Tier switch
             {

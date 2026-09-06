@@ -66,7 +66,7 @@ public static partial class EnemyData
         double chance,
         DropRarity rarity)
     {
-        Enemy enemy = AllEnemies.Single(enemy => enemy.Name == enemyName);
+        Enemy enemy = EnemyRegistry.Single(enemy => enemy.Name == enemyName);
 
         enemy.DropTable.Drops.Add(new Drop
         {
