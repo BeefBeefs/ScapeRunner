@@ -83,6 +83,7 @@ jobs:
           dotnet publish OSRSIdle/OSRSIdle.csproj `
             --configuration Release `
             --framework net10.0-android `
+            --no-restore `
             --property:AndroidPackageFormat=apk `
             --property:AndroidKeyStore=true `
             --property:AndroidSigningKeyStore="$env:ANDROID_KEYSTORE_PATH" `
