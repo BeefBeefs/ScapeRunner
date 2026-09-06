@@ -2,8 +2,6 @@ namespace OSRSIdle;
 
 public partial class HomeView : ContentView
 {
-    private bool _updatingDebugSpeedSwitches;
-
     private readonly Player _player;
 
     private readonly CombatManager _combatManager;
@@ -64,9 +62,6 @@ public partial class HomeView : ContentView
         _player.CollectionLog.CollectionChanged +=
             OnCollectionChanged;
 
-        GameClock.SpeedChanged +=
-            OnGameSpeedChanged;
-
         HPXPBar.SizeChanged +=
             OnXPBarSizeChanged;
 
@@ -78,8 +73,6 @@ public partial class HomeView : ContentView
 
         DefenseXPBar.SizeChanged +=
             OnXPBarSizeChanged;
-
-        UpdateDebugSpeedSwitches();
 
         UpdateDisplay();
     }
@@ -109,8 +102,6 @@ public partial class HomeView : ContentView
         _player.CollectionLog.CollectionChanged -=
             OnCollectionChanged;
 
-        GameClock.SpeedChanged -=
-            OnGameSpeedChanged;
     }
 
 
@@ -167,70 +158,6 @@ public partial class HomeView : ContentView
     {
         UpdateDisplay();
     }
-
-    private void OnDebugSpeedToggled(
-        object? sender,
-        ToggledEventArgs e)
-    {
-        if (_updatingDebugSpeedSwitches)
-            return;
-
-        if (e.Value)
-        {
-            GameClock.SetDebugSpeedMultiplier(
-                GameClock.DebugSpeedMultiplier);
-        }
-        else if (!ExtremeDebugSpeedSwitch.IsToggled)
-        {
-            GameClock.SetDebugSpeedEnabled(false);
-        }
-    }
-
-    private void OnExtremeDebugSpeedToggled(
-        object? sender,
-        ToggledEventArgs e)
-    {
-        if (_updatingDebugSpeedSwitches)
-            return;
-
-        if (e.Value)
-        {
-            GameClock.SetDebugSpeedMultiplier(
-                GameClock.ExtremeDebugSpeedMultiplier);
-        }
-        else if (!DebugSpeedSwitch.IsToggled)
-        {
-            GameClock.SetDebugSpeedEnabled(false);
-        }
-    }
-
-    private void OnGameSpeedChanged(object? sender, EventArgs e)
-    {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            UpdateDebugSpeedSwitches();
-        });
-    }
-
-    private void UpdateDebugSpeedSwitches()
-    {
-        _updatingDebugSpeedSwitches = true;
-        try
-        {
-            DebugSpeedSwitch.IsToggled =
-                GameClock.IsDebugSpeedEnabled &&
-                GameClock.SpeedMultiplier == GameClock.DebugSpeedMultiplier;
-
-            ExtremeDebugSpeedSwitch.IsToggled =
-                GameClock.IsDebugSpeedEnabled &&
-                GameClock.SpeedMultiplier == GameClock.ExtremeDebugSpeedMultiplier;
-        }
-        finally
-        {
-            _updatingDebugSpeedSwitches = false;
-        }
-    }
-
 
     // ============================================================
     // UPDATE DISPLAY

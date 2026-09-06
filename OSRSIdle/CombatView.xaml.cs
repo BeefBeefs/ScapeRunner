@@ -1963,7 +1963,8 @@ public partial class CombatView : ContentView
 
         _combatManager.BeginAutoFightRespawn(
             enemy,
-            AutoFightDelayTicks);
+            DebugSettings.GetAutoFightRespawnTicks(
+                AutoFightDelayTicks));
 
         UpdateEnemyPortraitAppearance();
 
@@ -2329,7 +2330,11 @@ public partial class CombatView : ContentView
         try
         {
             // Count down one tick at a time.
-            for (int ticksLeft = AutoFightDelayTicks;
+            int respawnTicks =
+                DebugSettings.GetAutoFightRespawnTicks(
+                    AutoFightDelayTicks);
+
+            for (int ticksLeft = respawnTicks;
                  ticksLeft > 0;
                  ticksLeft--)
             {

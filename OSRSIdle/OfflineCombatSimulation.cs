@@ -64,7 +64,9 @@ public sealed class OfflineCombatSimulation
 
         AutoFight = savedActivity.IsAutoFight;
         IsRespawning = savedActivity.IsRespawning;
-        RespawnTicksRemaining = Math.Max(0, savedActivity.RespawnTicksRemaining);
+        RespawnTicksRemaining = DebugSettings.IsInstakillEnabled
+            ? 1
+            : Math.Max(0, savedActivity.RespawnTicksRemaining);
 
         if (!Enum.TryParse(savedActivity.CombatStyle, out _combatStyle))
         {
@@ -150,10 +152,13 @@ public sealed class OfflineCombatSimulation
 
     private void PerformPlayerAttack()
     {
-        if (!RollAccuracy(_player.GetEffectiveAttackLevel(), Enemy.Defense))
+        if (!DebugSettings.IsInstakillEnabled &&
+            !RollAccuracy(_player.GetEffectiveAttackLevel(), Enemy.Defense))
             return;
 
-        int damage = RollDamage(_player.GetEffectiveStrengthLevel());
+        int damage = DebugSettings.IsInstakillEnabled
+            ? Enemy.CurrentHP
+            : RollDamage(_player.GetEffectiveStrengthLevel());
 
         Enemy.CurrentHP = Math.Max(0, Enemy.CurrentHP - damage);
         _player.HP.AddXP(damage);
@@ -250,7 +255,8 @@ public sealed class OfflineCombatSimulation
         }
 
         IsRespawning = true;
-        RespawnTicksRemaining = AutoFightRespawnTicks;
+        RespawnTicksRemaining = DebugSettings.GetAutoFightRespawnTicks(
+            AutoFightRespawnTicks);
         _playerElapsedTicks = 0;
         _enemyElapsedTicks = 0;
     }

@@ -133,6 +133,9 @@ public partial class GamePage : ContentPage
         CombatManager.EnemyDefeated +=
             OnEnemyDefeated;
 
+        Player.CollectionLog.CollectionCompleted +=
+            OnCollectionCompleted;
+
         CombatManager.LevelUp +=
             OnLevelUp;
 
@@ -885,11 +888,39 @@ public partial class GamePage : ContentPage
 
     public void ShowSettingsPage()
     {
-        _settingsView ??= new SettingsView();
+        _settingsView ??= new SettingsView(
+            ResetCharacter,
+            ReturnToCharacterSelect);
         GameContent.Content = _settingsView;
 
         UpdateNavigationAppearance(SettingsNavigationButton);
         UpdatePageTitle("Settings");
+    }
+
+    private void ReturnToCharacterSelect()
+    {
+        _settingsView?.Dispose();
+        ActivityManager.StopActivity();
+        CombatManager.AbortCombatEncounter();
+        _healthRegenerationTimer?.Stop();
+        _game.Save();
+
+        Window? window = Application.Current?.Windows.FirstOrDefault();
+        if (window != null)
+            window.Page = new LandingPage();
+    }
+
+    private void ResetCharacter()
+    {
+        _settingsView?.Dispose();
+        ActivityManager.StopActivity();
+        CombatManager.AbortCombatEncounter();
+        _healthRegenerationTimer?.Stop();
+        _game.Reset();
+
+        Window? window = Application.Current?.Windows.FirstOrDefault();
+        if (window != null)
+            window.Page = new LandingPage();
     }
 
     private void UpdatePageTitle(string title)
@@ -1246,6 +1277,14 @@ public partial class GamePage : ContentPage
         });
     }
 
+    private void OnCollectionCompleted(Enemy enemy)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _ = ShowCollectionCompletedPopup(enemy);
+        });
+    }
+
 
     // ============================================================
     // LEVEL UP POPUP
@@ -1348,22 +1387,11 @@ public partial class GamePage : ContentPage
                     }
             };
 
-        Grid levelUpPopupHost =
-            new Grid
-            {
-                HorizontalOptions = LayoutOptions.Fill,
-                VerticalOptions = LayoutOptions.Fill,
-                InputTransparent = true
-            };
-
-        // Center within the game content row. The activity and navigation bars
-        // are separate rows in MainGrid and should not affect the dialog's
-        // visual center.
-        Grid.SetRow(levelUpPopupHost, 0);
-        Grid.SetRowSpan(levelUpPopupHost, 1);
-
-        levelUpPopupHost.Children.Add(levelUpPopup);
-        MainGrid.Children.Add(levelUpPopupHost);
+        // NotificationLayer is a XAML-declared, full-size overlay in the game
+        // content row. Add the popup directly to it so Android arranges the
+        // centered child against the overlay bounds instead of a dynamically
+        // measured host whose bounds can collapse to the popup's size.
+        NotificationLayer.Children.Add(levelUpPopup);
 
 
         await Task.WhenAll(
@@ -1397,7 +1425,7 @@ public partial class GamePage : ContentPage
                 Easing.CubicIn));
 
 
-        MainGrid.Children.Remove(levelUpPopupHost);
+        NotificationLayer.Children.Remove(levelUpPopup);
     }
 
 
@@ -1489,14 +1517,7 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        Grid lootPopupHost = new Grid
-        {
-            HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Fill,
-            InputTransparent = true
-        };
-        lootPopupHost.Children.Add(lootPopup);
-        NotificationLayer.Children.Add(lootPopupHost);
+        NotificationLayer.Children.Add(lootPopup);
 
         await Task.WhenAll(
             lootPopup.FadeToAsync(1, 140),
@@ -1517,7 +1538,86 @@ public partial class GamePage : ContentPage
             lootPopup.ScaleToAsync(0.9, 350, Easing.CubicIn),
             lootPopup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
 
-        NotificationLayer.Children.Remove(lootPopupHost);
+        NotificationLayer.Children.Remove(lootPopup);
+    }
+
+
+    // ============================================================
+    // COLLECTION LOG COMPLETION POPUP
+    // ============================================================
+
+    private async Task ShowCollectionCompletedPopup(Enemy enemy)
+    {
+        _ = ShowThreeFireworksAsync();
+
+        Label titleLabel =
+            new Label
+            {
+                Text = "COLLECTION LOG COMPLETE!",
+                FontSize = 30,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#FFE26A"),
+                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center
+            };
+
+        Label enemyLabel =
+            new Label
+            {
+                Text = enemy.Name,
+                FontSize = 22,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Colors.White,
+                HorizontalTextAlignment = TextAlignment.Center,
+                HorizontalOptions = LayoutOptions.Center
+            };
+
+        Border popup =
+            new Border
+            {
+                BackgroundColor = Color.FromArgb("#202020"),
+                Stroke = Color.FromArgb("#FFE26A"),
+                StrokeThickness = 3,
+                StrokeShape =
+                    new Microsoft.Maui.Controls.Shapes.RoundRectangle
+                    {
+                        CornerRadius = 14
+                    },
+                Padding = new Thickness(30, 20),
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                MaximumWidthRequest = 340,
+                Margin = new Thickness(24, 0),
+                Opacity = 0,
+                Scale = 0.55,
+                TranslationY = 24,
+                Content = new VerticalStackLayout
+                {
+                    Spacing = 4,
+                    HorizontalOptions = LayoutOptions.Fill,
+                    Children =
+                    {
+                        titleLabel,
+                        enemyLabel
+                    }
+                }
+            };
+
+        NotificationLayer.Children.Add(popup);
+
+        await Task.WhenAll(
+            popup.FadeToAsync(1, 140),
+            popup.ScaleToAsync(1.14, 260, Easing.CubicOut),
+            popup.TranslateToAsync(0, 0, 260, Easing.CubicOut));
+
+        await Task.Delay(4000);
+
+        await Task.WhenAll(
+            popup.FadeToAsync(0, 350, Easing.CubicIn),
+            popup.ScaleToAsync(0.9, 350, Easing.CubicIn),
+            popup.TranslateToAsync(0, -20, 350, Easing.CubicIn));
+
+        NotificationLayer.Children.Remove(popup);
     }
 
 

@@ -24,6 +24,8 @@ public class CollectionLog
 
     public event Action<Item>? SkillingPetDiscovered;
 
+    public event Action<Enemy>? CollectionCompleted;
+
     public void RecordKill(Enemy enemy)
     {
         _killCounts.TryGetValue(enemy, out int currentCount);
@@ -59,6 +61,7 @@ public class CollectionLog
         Enemy enemy,
         IEnumerable<LootResult> loot)
     {
+        bool wasComplete = IsComplete(enemy);
         bool changed =
             false;
 
@@ -77,6 +80,9 @@ public class CollectionLog
         if (changed)
         {
             CollectionChanged?.Invoke();
+
+            if (!wasComplete && IsComplete(enemy))
+                CollectionCompleted?.Invoke(enemy);
         }
     }
 

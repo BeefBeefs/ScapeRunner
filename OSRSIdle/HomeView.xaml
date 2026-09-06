@@ -125,40 +125,6 @@
                             HorizontalTextAlignment="Center"
                             MaximumWidthRequest="140" />
 
-                        <HorizontalStackLayout
-                            Spacing="5"
-                            HorizontalOptions="Center">
-
-                            <Label
-                                Text="Debug 20× ticks"
-                                FontSize="10"
-                                TextColor="#FFE26A"
-                                VerticalOptions="Center" />
-
-                            <Switch
-                                x:Name="DebugSpeedSwitch"
-                                Scale="0.72"
-                                Toggled="OnDebugSpeedToggled" />
-
-                        </HorizontalStackLayout>
-
-                        <HorizontalStackLayout
-                            Spacing="5"
-                            HorizontalOptions="Center">
-
-                            <Label
-                                Text="Debug 100× ticks"
-                                FontSize="10"
-                                TextColor="#FFE26A"
-                                VerticalOptions="Center" />
-
-                            <Switch
-                                x:Name="ExtremeDebugSpeedSwitch"
-                                Scale="0.72"
-                                Toggled="OnExtremeDebugSpeedToggled" />
-
-                        </HorizontalStackLayout>
-
                     </VerticalStackLayout>
 
                 </Border>

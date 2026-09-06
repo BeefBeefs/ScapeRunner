@@ -578,6 +578,7 @@ public class CombatManager
         // --------------------------------------------------------
 
         bool hit =
+            DebugSettings.IsInstakillEnabled ||
             RollAccuracy(
                 Player.GetEffectiveAttackLevel(),
                 enemy.Traits.Contains(EnemyTrait.Armored)
@@ -606,8 +607,10 @@ public class CombatManager
         // --------------------------------------------------------
 
         int damage =
-            RollDamage(
-                Player.GetEffectiveStrengthLevel());
+            DebugSettings.IsInstakillEnabled
+                ? enemy.CurrentHP
+                : RollDamage(
+                    Player.GetEffectiveStrengthLevel());
 
         if (enemy.Traits.Contains(EnemyTrait.Armored))
             damage = Math.Max(1, (int)Math.Floor(damage * 0.85));
