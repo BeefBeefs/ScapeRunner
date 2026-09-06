@@ -1387,11 +1387,7 @@ public partial class GamePage : ContentPage
                     }
             };
 
-        // NotificationLayer is a XAML-declared, full-size overlay in the game
-        // content row. Add the popup directly to it so Android arranges the
-        // centered child against the overlay bounds instead of a dynamically
-        // measured host whose bounds can collapse to the popup's size.
-        NotificationLayer.Children.Add(levelUpPopup);
+        await AddCenteredNotificationAsync(levelUpPopup);
 
 
         await Task.WhenAll(
@@ -1501,7 +1497,7 @@ public partial class GamePage : ContentPage
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
                 MaximumWidthRequest = 340,
-                Margin = new Thickness(24, 0),
+                Margin = 0,
                 Opacity = 0,
                 Scale = 0.55,
                 TranslationY = 24,
@@ -1517,7 +1513,7 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        NotificationLayer.Children.Add(lootPopup);
+        await AddCenteredNotificationAsync(lootPopup);
 
         await Task.WhenAll(
             lootPopup.FadeToAsync(1, 140),
@@ -1587,7 +1583,7 @@ public partial class GamePage : ContentPage
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
                 MaximumWidthRequest = 340,
-                Margin = new Thickness(24, 0),
+                Margin = 0,
                 Opacity = 0,
                 Scale = 0.55,
                 TranslationY = 24,
@@ -1603,7 +1599,7 @@ public partial class GamePage : ContentPage
                 }
             };
 
-        NotificationLayer.Children.Add(popup);
+        await AddCenteredNotificationAsync(popup);
 
         await Task.WhenAll(
             popup.FadeToAsync(1, 140),
@@ -1624,6 +1620,67 @@ public partial class GamePage : ContentPage
     // ============================================================
     // CELEBRATION FIREWORKS
     // ============================================================
+
+    private async Task AddCenteredNotificationAsync(
+        View notification,
+        double maximumWidth = 340,
+        double horizontalMargin = 24)
+    {
+        NotificationLayer.Children.Add(notification);
+
+        // Wait for Android to arrange the full-window overlay before using
+        // its dimensions. DeviceDisplay reports physical pixels, while MAUI
+        // views use density-independent units, so the overlay's actual bounds
+        // are the correct coordinate space for positioning its children.
+        for (int attempt = 0;
+             attempt < 30 &&
+             (NotificationLayer.Width <= 0 || NotificationLayer.Height <= 0);
+             attempt++)
+        {
+            await Task.Delay(16);
+        }
+
+        double overlayWidth = NotificationLayer.Width;
+        double overlayHeight = NotificationLayer.Height;
+
+        if (overlayWidth <= 0 || overlayHeight <= 0)
+        {
+            overlayWidth = Math.Max(0, MainGrid.Width);
+            overlayHeight = Math.Max(0, MainGrid.Height);
+        }
+
+        double widthConstraint = Math.Max(
+            0,
+            Math.Min(
+                maximumWidth,
+                overlayWidth - horizontalMargin * 2));
+        double heightConstraint = Math.Max(0, overlayHeight);
+
+        Size measured = notification.Measure(
+            widthConstraint,
+            heightConstraint);
+
+        double notificationWidth = Math.Min(
+            widthConstraint,
+            measured.Width);
+        double notificationHeight = Math.Min(
+            heightConstraint,
+            measured.Height);
+
+        double left = (overlayWidth - notificationWidth) / 2;
+        double top = (overlayHeight - notificationHeight) / 2;
+
+        AbsoluteLayout.SetLayoutFlags(
+            notification,
+            Microsoft.Maui.Layouts.AbsoluteLayoutFlags.None);
+        AbsoluteLayout.SetLayoutBounds(
+            notification,
+            new Rect(
+                left,
+                top,
+                notificationWidth,
+                notificationHeight));
+    }
 
     private async Task ShowThreeFireworksAsync()
     {
@@ -1719,7 +1776,10 @@ public partial class GamePage : ContentPage
             });
         }
 
-        NotificationLayer.Children.Add(burst);
+        await AddCenteredNotificationAsync(
+            burst,
+            maximumWidth: 72,
+            horizontalMargin: 0);
 
         await Task.WhenAll(
             burst.FadeToAsync(1, 70),

@@ -27,11 +27,13 @@
         <!-- NOTIFICATION / ANIMATION LAYER                   -->
         <!-- ================================================= -->
 
-        <Grid
+        <AbsoluteLayout
             x:Name="NotificationLayer"
             Grid.Row="0"
+            Grid.RowSpan="3"
             HorizontalOptions="Fill"
             VerticalOptions="Fill"
+            ZIndex="100"
             InputTransparent="True" />
 
 
