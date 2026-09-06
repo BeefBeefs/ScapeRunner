@@ -470,8 +470,7 @@ public partial class CollectionLogView : ContentView
             DropList.Children.Add(dropRow);
         }
 
-        DropList.Opacity = 0;
-        _ = DropList.FadeToAsync(1, 220, Easing.CubicOut);
+        DropList.Opacity = 1;
     }
 
     private void StartPortraitSparkles()

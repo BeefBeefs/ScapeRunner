@@ -22,6 +22,7 @@ public static class RarityVisuals
             result.Spans.Add(new Span { Text = text[index].ToString(), TextColor = colors[index % colors.Length] });
         return result;
     }
+
     public static Grid CreateItemVisual(
         Item item,
         double size,
@@ -52,25 +53,19 @@ public static class RarityVisuals
             return visual;
 
         DropRarity rarity = rarityOverride ?? GetRarity(item);
-        if (rarity < DropRarity.Rare)
-            return visual;
-
         Color rarityColor = GameThemeCache.GetRarityColor(rarity);
-        Border glow = new()
+        Border rarityBox = new()
         {
             Stroke = rarityColor,
-            StrokeThickness = Math.Max(1, size / 18),
-            BackgroundColor = rarityColor.WithAlpha(0.08f),
-            Opacity = GetGlowOpacity(rarity),
+            StrokeThickness = 2,
+            BackgroundColor = Colors.Transparent,
             InputTransparent = true,
-            WidthRequest = size * 0.86,
-            HeightRequest = size * 0.86,
+            WidthRequest = size,
+            HeightRequest = size,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center
         };
-        visual.Children.Add(glow);
-
-        StartPulse(visual, glow, rarity);
+        visual.Children.Add(rarityBox);
         return visual;
     }
 
@@ -108,63 +103,6 @@ public static class RarityVisuals
             .DefaultIfEmpty(DropRarity.Common)
             .Max();
     }
-
-    private static void StartPulse(
-        Grid visual,
-        Border glow,
-        DropRarity rarity)
-    {
-        uint duration = rarity >= DropRarity.MegaRare ? 780u : 1200u;
-        bool running = true;
-
-        // Item visuals are frequently rebuilt as virtualized lists recycle
-        // cells. Stop the animation as soon as the visual leaves the visual
-        // tree so detached cells do not retain an endless animation callback.
-        void OnHandlerChanged(object? sender, EventArgs args)
-        {
-            if (visual.Handler == null)
-            {
-                StopPulse(glow);
-                running = false;
-            }
-            else if (!running)
-            {
-                CommitPulse(glow, rarity, duration);
-                running = true;
-            }
-        }
-
-        visual.HandlerChanged += OnHandlerChanged;
-        CommitPulse(glow, rarity, duration);
-    }
-
-    private static void CommitPulse(
-        Border glow,
-        DropRarity rarity,
-        uint duration)
-    {
-        new Animation
-        {
-            { 0.0, 0.5, new Animation(value => glow.Opacity = value, 0.18, GetGlowOpacity(rarity)) },
-            { 0.5, 1.0, new Animation(value => glow.Opacity = value, GetGlowOpacity(rarity), 0.18) }
-        }.Commit(glow, "rarityGlow", 16, duration, Easing.SinInOut, repeat: () => true);
-
-    }
-
-    private static void StopPulse(Border glow)
-    {
-        glow.AbortAnimation("rarityGlow");
-    }
-
-    private static double GetGlowOpacity(DropRarity rarity) => rarity switch
-    {
-        DropRarity.Uncommon => 0.38,
-        DropRarity.Rare => 0.50,
-        DropRarity.VeryRare => 0.60,
-        DropRarity.SuperRare => 0.72,
-        DropRarity.MegaRare => 0.86,
-        _ => 0.18
-    };
 
     private static string GetBaseName(string itemName)
     {

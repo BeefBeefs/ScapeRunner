@@ -575,31 +575,6 @@ public partial class GamePage : ContentPage
         return GameThemeCache.GetRarityColor(rarity);
     }
 
-    private static void AddRainbowText(
-        FormattedString formattedText,
-        string text)
-    {
-        Color[] rainbow =
-        {
-            Color.FromArgb("#FF5C5C"),
-            Color.FromArgb("#FFB347"),
-            Color.FromArgb("#FFF45C"),
-            Color.FromArgb("#68E06F"),
-            Color.FromArgb("#5CB8FF"),
-            Color.FromArgb("#B783FF"),
-            Color.FromArgb("#FF7DC8")
-        };
-
-        for (int index = 0; index < text.Length; index++)
-        {
-            formattedText.Spans.Add(new Span
-            {
-                Text = text[index].ToString(),
-                TextColor = rainbow[index % rainbow.Length]
-            });
-        }
-    }
-
     private static string BuildLevelUpSummary(
         IReadOnlyList<OfflineLevelUp> levelUps)
     {

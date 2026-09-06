@@ -367,7 +367,7 @@ public partial class InventoryView : ContentView
     // UPDATE INVENTORY
     // ============================================================
 
-    private void UpdateInventory(Item? combineResult = null)
+    private void UpdateInventory()
     {
         UpdateInventoryCapacity();
         UpdateCombineAllEquipmentButton();
@@ -532,11 +532,6 @@ public partial class InventoryView : ContentView
                 column,
                 row);
 
-            if (combineResult != null &&
-                ReferenceEquals(sortedItems[index].Item, combineResult))
-            {
-                _ = PlayCombineAnimationAsync(itemSlot);
-            }
         }
     }
 
@@ -770,38 +765,6 @@ public partial class InventoryView : ContentView
         };
     }
 
-    private static async Task PlayCombineAnimationAsync(Border itemSlot)
-    {
-        if (itemSlot.Parent == null)
-            return;
-
-        double originalScale = itemSlot.Scale;
-        double originalOpacity = itemSlot.Opacity;
-
-        try
-        {
-            itemSlot.Scale = 0.78;
-            itemSlot.Opacity = 0.55;
-
-            await Task.WhenAll(
-                itemSlot.FadeToAsync(originalOpacity, 130, Easing.CubicOut),
-                itemSlot.ScaleToAsync(1.16, 190, Easing.CubicOut));
-
-            await itemSlot.ScaleToAsync(originalScale, 150, Easing.CubicInOut);
-        }
-        catch (Exception exception)
-        {
-            System.Diagnostics.Debug.WriteLine(
-                $"Combine animation failed: {exception}");
-        }
-        finally
-        {
-            itemSlot.Scale = originalScale;
-            itemSlot.Opacity = originalOpacity;
-        }
-    }
-
-
     // ============================================================
     // ITEM INFORMATION
     // ============================================================
@@ -860,7 +823,7 @@ public partial class InventoryView : ContentView
         {
             if (_inventory.TryCombineEquipment(item, out Item upgradedItem))
             {
-                UpdateInventory(upgradedItem);
+                UpdateInventory();
                 await CustomDialogService.ShowAsync(
                     "Equipment combined",
                     $"Your {item.Name} became {upgradedItem.Name}.",
@@ -877,8 +840,7 @@ public partial class InventoryView : ContentView
         {
             if (_inventory.TryCombineAllEquipment(item, out EquipmentCombineAllResult result))
             {
-                Item? animationItem = result.CreatedStacks.LastOrDefault()?.Item;
-                UpdateInventory(animationItem);
+                UpdateInventory();
                 string createdItems = string.Join(
                     ", ",
                     result.CreatedStacks.Select(stack =>

@@ -799,7 +799,6 @@ public partial class CombatView : ContentView
             };
             if (obtained && RarityVisuals.IsRainbowRare(drop.Chance))
                 dropLabel.FormattedText = RarityVisuals.RainbowText(dropLabel.Text ?? string.Empty);
-
             Grid dropRow = new()
             {
                 ColumnDefinitions =
@@ -986,21 +985,7 @@ public partial class CombatView : ContentView
                     dropVisual.IconHost,
                     dropVisual.Drop.Rarity,
                     16);
-                _ = RevealDropIconAsync(dropVisual.Icon);
             }
-        }
-    }
-
-    private static async Task RevealDropIconAsync(Image icon)
-    {
-        try
-        {
-            icon.Opacity = 0;
-            await icon.FadeToAsync(1, 260, Easing.CubicOut);
-        }
-        catch
-        {
-            icon.Opacity = 1;
         }
     }
 
@@ -1982,7 +1967,6 @@ public partial class CombatView : ContentView
                 };
             if (RarityVisuals.IsRainbowRare(result.Chance))
                 lootLabel.FormattedText = RarityVisuals.RainbowText(lootLabel.Text ?? string.Empty);
-
             LootContainer.Children.Add(
                 new HorizontalStackLayout
                 {
@@ -2006,29 +1990,19 @@ public partial class CombatView : ContentView
         DropRarity rarity,
         double size)
     {
-        if (rarity < DropRarity.Rare)
-            return;
-
         Color color = GameThemeCache.GetRarityColor(rarity);
-        Border glow = new()
+        Border rarityBox = new()
         {
             Stroke = color,
-            StrokeThickness = 1,
-            BackgroundColor = color.WithAlpha(0.08f),
-            Opacity = 0.55,
+            StrokeThickness = 2,
+            BackgroundColor = Colors.Transparent,
             InputTransparent = true,
-            WidthRequest = size * 0.86,
-            HeightRequest = size * 0.86,
+            WidthRequest = size,
+            HeightRequest = size,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center
         };
-        host.Children.Add(glow);
-
-        new Animation
-        {
-            { 0, 0.5, new Animation(value => glow.Opacity = value, 0.2, 0.75) },
-            { 0.5, 1, new Animation(value => glow.Opacity = value, 0.75, 0.2) }
-        }.Commit(glow, "dropGlow", 16, 1100, Easing.SinInOut, repeat: () => true);
+        host.Children.Add(rarityBox);
     }
 
     private static string FormatDropRarity(DropRarity rarity)
