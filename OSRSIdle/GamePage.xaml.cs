@@ -251,7 +251,7 @@ public partial class GamePage : ContentPage
         double elapsedSeconds =
             (now - _fpsWindowStartedUtc).TotalSeconds;
 
-        if (elapsedSeconds < 1d)
+        if (elapsedSeconds < 0.25d)
             return;
 
         double framesPerSecond = _fpsFrameCount / elapsedSeconds;
