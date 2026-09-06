@@ -107,6 +107,15 @@
                             HorizontalOptions="Center"
                             HorizontalTextAlignment="Center" />
 
+                        <Label
+                            x:Name="ActivityEfficiencyLabel"
+                            Text="No skilling activity"
+                            FontSize="10"
+                            TextColor="#62C7FF"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            MaximumWidthRequest="140" />
+
                     </VerticalStackLayout>
 
                 </Border>

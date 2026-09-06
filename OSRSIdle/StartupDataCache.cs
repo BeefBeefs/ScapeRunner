@@ -206,7 +206,34 @@ public static class StartupDataCache
             }
         });
 
-        IsInitialized = true;
         progress.Report(new StartupProgress(0.96, "Validating game data"));
+        ValidateGameData();
+        IsInitialized = true;
+        progress.Report(new StartupProgress(1.0, "Game data ready"));
+    }
+
+    private static void ValidateGameData()
+    {
+        List<string> errors = new();
+        if (Items.Any(item => string.IsNullOrWhiteSpace(item.Name)) ||
+            Items.Select(item => item.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Items.Count)
+            errors.Add("Items must have unique names.");
+        if (Enemies.Any(enemy => string.IsNullOrWhiteSpace(enemy.Name)) ||
+            Enemies.Select(enemy => enemy.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Enemies.Count)
+            errors.Add("Enemies must have unique names.");
+        foreach (Enemy enemy in Enemies)
+        {
+            if (enemy.HP <= 0 || enemy.Attack < 0 || enemy.Strength < 0 || enemy.Defense < 0 || enemy.AttackSpeedTicks <= 0)
+                errors.Add($"Invalid combat stats for {enemy.Name}.");
+            if (enemy.DropTable.Drops.Any(drop => drop.Item == null || drop.Chance <= 0 || drop.Chance > 1))
+                errors.Add($"Invalid drop table for {enemy.Name}.");
+        }
+        foreach (SkillActivity activity in SkillActivitiesByName.Values.SelectMany(items => items))
+        {
+            if (activity.RequiredLevel < 1 || activity.XP <= 0 || activity.ActionTicks <= 0)
+                errors.Add($"Invalid activity: {activity.Name}.");
+        }
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", errors));
     }
 }

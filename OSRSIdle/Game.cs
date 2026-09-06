@@ -4,8 +4,6 @@ public class Game
 {
     public Player Player { get; private set; }
 
-    public ActivityEngine ActivityEngine { get; private set; }
-
     public long OfflineTicks { get; private set; }
 
     public OfflineActivitySaveData? OfflineActivity { get; private set; }
@@ -31,8 +29,6 @@ public class Game
     public Game()
     {
         Player = new Player();
-        ActivityEngine = new ActivityEngine();
-
         Player.Inventory.InventoryChanged += ScheduleSave;
         Player.EquipmentChanged += ScheduleSave;
         Player.AutoEatSettingsChanged += ScheduleSave;
@@ -230,7 +226,7 @@ public class Game
 
         long completedActions = (long)Math.Floor(
             OfflineTicks /
-            (double)activity.ActionTicks);
+            (double)ActivityMetrics.EffectiveActionTicks(activity));
 
         if (completedActions <= 0)
             return;

@@ -37,6 +37,14 @@
                 FontSize="16"
                 HorizontalOptions="Center" />
 
+            <Label
+                x:Name="SaveStatusLabel"
+                FontSize="12"
+                TextColor="#FFB347"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center"
+                IsVisible="False" />
+
             <Border
                 Style="{StaticResource GamePanelBorder}"
                 Margin="0,8"

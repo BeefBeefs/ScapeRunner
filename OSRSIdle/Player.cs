@@ -365,7 +365,9 @@ public class Player
             Item? bestItem =
                 availableItems
                     .Where(item => item.EquipmentSlot == slot)
-                    .OrderByDescending(GetCombinedEquipmentBonus)
+                    .OrderByDescending(item => slot == EquipmentSlot.Weapon
+                        ? GetWeaponAutoEquipScore(item)
+                        : (double)GetCombinedEquipmentBonus(item))
                     .ThenBy(item =>
                         slot == EquipmentSlot.Weapon
                             ? item.AttackSpeedTicks
@@ -472,6 +474,20 @@ public class Player
             item.StrengthBonus +
             item.DefenseBonus +
             item.HPBonus;
+    }
+
+    private double GetWeaponAutoEquipScore(Item item)
+    {
+        int currentWeaponAttack = EquippedWeapon?.AttackBonus ?? 0;
+        int currentWeaponStrength = EquippedWeapon?.StrengthBonus ?? 0;
+        double attackLevel = Math.Max(1,
+            Attack.Level + GetEquipmentAttackBonus() - currentWeaponAttack + item.AttackBonus);
+        double strengthLevel = Math.Max(1,
+            Strength.Level + GetEquipmentStrengthBonus() - currentWeaponStrength + item.StrengthBonus);
+        double hitChance = Math.Clamp(attackLevel / (attackLevel + 50d), 0.05d, 0.95d);
+        double maximumHit = Math.Max(1d, strengthLevel / 3d + 1d);
+        double averageHit = (maximumHit + 1d) / 2d;
+        return hitChance * averageHit / Math.Max(1, item.AttackSpeedTicks);
     }
 
     private void SetEquippedItem(

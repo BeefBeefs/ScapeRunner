@@ -48,7 +48,9 @@ public partial class CombatView : ContentView
     {
         public required Drop Drop { get; init; }
         public required Image Icon { get; init; }
+        public required Grid IconHost { get; init; }
         public required Label Label { get; init; }
+        public bool RarityDecorated { get; set; }
     }
 
     private static string FormatEnemyName(Enemy enemy)
@@ -131,6 +133,7 @@ public partial class CombatView : ContentView
         _combatManager.CombatUpdated -= OnCombatUpdated;
         _combatManager.CombatStopped -= OnCombatStopped;
         _combatManager.AttackPerformed -= OnAttackPerformed;
+        _combatManager.AutoEatPerformed -= OnAutoEatPerformed;
         _combatManager.EnemyDefeated -= OnEnemyDefeated;
         _combatManager.PlayerDefeated -= OnPlayerDefeated;
         _player.CollectionLog.DropDiscovered -= OnDropDiscovered;
@@ -178,6 +181,7 @@ public partial class CombatView : ContentView
         _combatManager.CombatUpdated += OnCombatUpdated;
         _combatManager.CombatStopped += OnCombatStopped;
         _combatManager.AttackPerformed += OnAttackPerformed;
+        _combatManager.AutoEatPerformed += OnAutoEatPerformed;
         _combatManager.EnemyDefeated += OnEnemyDefeated;
         _combatManager.PlayerDefeated += OnPlayerDefeated;
         _player.CollectionLog.DropDiscovered += OnDropDiscovered;
@@ -211,6 +215,7 @@ public partial class CombatView : ContentView
                 _lastEnemy = enemy;
 
                 EnemyNameLabel.Text = FormatEnemyName(enemy);
+                EnemyTraitsLabel.FormattedText = BuildEnemyTraitsText(enemy);
                 EnemyDescriptionLabel.Text = enemy.Description;
                 EnemyIcon.Source = enemy.LargeIconImage;
                 UpdateEnemyPortraitAppearance();
@@ -235,6 +240,7 @@ public partial class CombatView : ContentView
             CombatViewLayout.IsVisible = true;
 
             EnemyNameLabel.Text = FormatEnemyName(defeatedEnemy);
+            EnemyTraitsLabel.FormattedText = BuildEnemyTraitsText(defeatedEnemy);
             EnemyDescriptionLabel.Text = defeatedEnemy.Description;
             EnemyIcon.Source = defeatedEnemy.LargeIconImage;
             UpdateEnemyPortraitAppearance();
@@ -606,6 +612,21 @@ public partial class CombatView : ContentView
                 FontSize = 12
             };
 
+        Label estimateLabel = new()
+        {
+            Text = BuildEnemyEstimateText(enemy),
+            FontSize = 10,
+            TextColor = GetEnemyDifficultyColor(enemy)
+        };
+
+        Label traitsLabel = new()
+        {
+            FontSize = 11,
+            TextColor = Color.FromArgb("#FFB347"),
+            HorizontalTextAlignment = TextAlignment.Center
+        };
+        traitsLabel.FormattedText = BuildEnemyTraitsText(enemy);
+
         VerticalStackLayout enemyInfoContent =
             new VerticalStackLayout
             {
@@ -616,7 +637,9 @@ public partial class CombatView : ContentView
                     CreateEnemyStatRow("skill_attack.png", $"Attack: {enemy.Attack}"),
                     CreateEnemyStatRow("skill_strength.png", $"Strength: {enemy.Strength}"),
                     CreateEnemyStatRow("skill_defense.png", $"Defense: {enemy.Defense}"),
-                    speedLabel
+                    speedLabel,
+                    estimateLabel,
+                    traitsLabel
                 }
             };
 
@@ -767,6 +790,8 @@ public partial class CombatView : ContentView
                     ? GetDropRarityColor(drop.Rarity)
                     : Colors.Red
             };
+            if (obtained && RarityVisuals.IsRainbowRare(drop.Chance))
+                dropLabel.FormattedText = RarityVisuals.RainbowText(dropLabel.Text ?? string.Empty);
 
             Grid dropRow = new()
             {
@@ -777,7 +802,16 @@ public partial class CombatView : ContentView
                 },
                 ColumnSpacing = 4
             };
-            dropRow.Add(dropIcon, 0);
+            Grid dropIconHost = new()
+            {
+                WidthRequest = 16,
+                HeightRequest = 16,
+                IsClippedToBounds = false
+            };
+            dropIconHost.Children.Add(dropIcon);
+            if (obtained)
+                AddRarityDecoration(dropIconHost, drop.Rarity, 16);
+            dropRow.Add(dropIconHost, 0);
             dropRow.Add(dropLabel, 1);
             dropsList.Children.Add(dropRow);
 
@@ -785,6 +819,8 @@ public partial class CombatView : ContentView
             {
                 Drop = drop,
                 Icon = dropIcon,
+                IconHost = dropIconHost,
+                RarityDecorated = obtained,
                 Label = dropLabel
             });
         }
@@ -935,6 +971,29 @@ public partial class CombatView : ContentView
             dropVisual.Label.TextColor = obtained
                 ? GetDropRarityColor(dropVisual.Drop.Rarity)
                 : Colors.Red;
+
+            if (obtained && !dropVisual.RarityDecorated)
+            {
+                dropVisual.RarityDecorated = true;
+                AddRarityDecoration(
+                    dropVisual.IconHost,
+                    dropVisual.Drop.Rarity,
+                    16);
+                _ = RevealDropIconAsync(dropVisual.Icon);
+            }
+        }
+    }
+
+    private static async Task RevealDropIconAsync(Image icon)
+    {
+        try
+        {
+            icon.Opacity = 0;
+            await icon.FadeToAsync(1, 260, Easing.CubicOut);
+        }
+        catch
+        {
+            icon.Opacity = 1;
         }
     }
 
@@ -962,6 +1021,61 @@ public partial class CombatView : ContentView
                 }
             }
         };
+    }
+
+    private string BuildEnemyEstimateText(Enemy enemy)
+    {
+        double playerHitChance = Math.Clamp(
+            (double)_player.GetEffectiveAttackLevel() /
+            (_player.GetEffectiveAttackLevel() + enemy.Defense),
+            0.05d,
+            0.95d);
+        double playerAverageHit = (Math.Max(1, _player.GetMaxHit()) + 1d) / 2d;
+        double playerDps = playerHitChance * playerAverageHit /
+            (_player.GetAttackSpeedTicks() * ActivityMetrics.SecondsPerTick);
+        double enemyHitChance = Math.Clamp(
+            (double)enemy.Attack /
+            (enemy.Attack + _player.GetEffectiveDefenseLevel()),
+            0.05d,
+            0.95d);
+        double enemyAverageHit = (Math.Max(1, enemy.Strength / 3 + 1) + 1d) / 2d;
+        double incomingDps = enemyHitChance * enemyAverageHit /
+            (Math.Max(1, enemy.AttackSpeedTicks) * ActivityMetrics.SecondsPerTick);
+        string killTime = playerDps <= 0
+            ? "—"
+            : ActivityMetrics.FormatDuration(enemy.HP / playerDps);
+        string bonus = ProgressionBonuses.Format(ProgressionBonuses.CombatXpPercent(_player, enemy));
+        return $"Est. kill: {killTime} • hit {playerHitChance:P0}\n" +
+               $"Incoming: {incomingDps:0.0} DPS" +
+               (string.IsNullOrEmpty(bonus) ? string.Empty : $"  •  {bonus}");
+    }
+
+    private static string FormatEnemyTraits(Enemy enemy)
+    {
+        return enemy.Traits.Count == 0
+            ? string.Empty
+            : "Traits: " + string.Join(" • ", enemy.Traits.Select(EnemyTraitRules.Name));
+    }
+
+    private static FormattedString BuildEnemyTraitsText(Enemy enemy)
+    {
+        FormattedString result = new();
+        if (enemy.Traits.Count == 0)
+            return result;
+
+        result.Spans.Add(new Span { Text = "Traits: ", TextColor = Colors.White });
+        for (int index = 0; index < enemy.Traits.Count; index++)
+        {
+            if (index > 0)
+                result.Spans.Add(new Span { Text = " • ", TextColor = Colors.White });
+            EnemyTrait trait = enemy.Traits[index];
+            result.Spans.Add(new Span
+            {
+                Text = EnemyTraitRules.Name(trait),
+                TextColor = EnemyTraitRules.Color(trait)
+            });
+        }
+        return result;
     }
 
     private void OnDropDiscovered(Item item)
@@ -1579,6 +1693,13 @@ public partial class CombatView : ContentView
         {
             ShowDamagePopup(e);
 
+            // A hit should only jolt the portrait that was struck. Keeping the
+            // surrounding card stationary makes the combat UI easier to read.
+            VisualElement target = e.AttackerIsPlayer ? EnemyPortraitFrame : PlayerPanel;
+            _ = e.Hit && e.Damage > 0
+                ? PlayHitReactionAsync(target)
+                : PlayMissReactionAsync(target);
+
             if (!e.Hit || e.Damage <= 0)
                 return;
 
@@ -1645,7 +1766,7 @@ public partial class CombatView : ContentView
                     LayoutOptions.Center,
                 Drawable = new HitSplatDrawable(
                     e.Hit,
-                    e.Hit ? $"-{e.Damage}" : "0")
+                    e.Hit ? $"-{e.Damage}" : "MISS")
             };
 
         hitSplat.Children.Add(hitsplatGraphic);
@@ -1722,6 +1843,100 @@ public partial class CombatView : ContentView
             FightAgainButton.IsEnabled = true;
             EnemySelectButton.IsEnabled = true;
         });
+    }
+
+    private void OnAutoEatPerformed(AutoEatEventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _ = PlayAutoEatFeedbackAsync(e);
+        });
+    }
+
+    private static async Task PlayHitReactionAsync(VisualElement target)
+    {
+        try
+        {
+            await Task.WhenAll(
+                target.ScaleToAsync(1.035, 70, Easing.CubicOut),
+                target.TranslateToAsync(5, 0, 35, Easing.CubicOut));
+            await target.TranslateToAsync(-5, 0, 55, Easing.CubicInOut);
+            await Task.WhenAll(
+                target.ScaleToAsync(1, 90, Easing.CubicIn),
+                target.TranslateToAsync(0, 0, 45, Easing.CubicOut));
+        }
+        catch
+        {
+            target.Scale = 1;
+            target.TranslationX = 0;
+        }
+    }
+
+    private static async Task PlayMissReactionAsync(VisualElement target)
+    {
+        try
+        {
+            await Task.WhenAll(
+                target.FadeToAsync(0.72, 55, Easing.CubicOut),
+                target.TranslateToAsync(2, 0, 35, Easing.CubicOut));
+            await Task.WhenAll(
+                target.FadeToAsync(1, 100, Easing.CubicIn),
+                target.TranslateToAsync(0, 0, 55, Easing.CubicInOut));
+        }
+        catch
+        {
+            target.Opacity = 1;
+            target.TranslationX = 0;
+        }
+    }
+
+    private async Task PlayAutoEatFeedbackAsync(AutoEatEventArgs e)
+    {
+        try
+        {
+            if (PlayerHPBar.Width > 0)
+            {
+                double previous = Math.Clamp(
+                    (double)e.PreviousHP / _player.GetMaxHP(),
+                    0,
+                    1);
+                double current = Math.Clamp(
+                    (double)e.CurrentHP / _player.GetMaxHP(),
+                    0,
+                    1);
+
+                PlayerHealFill.Opacity = 0.9;
+                PlayerHealFill.WidthRequest = PlayerHPBar.Width * previous;
+                var healingAnimation = new Animation(
+                    value => PlayerHealFill.WidthRequest = PlayerHPBar.Width * value,
+                    previous,
+                    current);
+                healingAnimation.Commit(
+                    PlayerHealFill,
+                    "healTrail",
+                    16,
+                    180,
+                    Easing.CubicOut);
+                await Task.Delay(180);
+                await PlayerHealFill.FadeToAsync(0, 220, Easing.CubicIn);
+            }
+
+            Color originalTextColor = PlayerHPLabel.TextColor;
+            PlayerHPLabel.TextColor = Color.FromArgb("#8BFF9D");
+            await Task.WhenAll(
+                PlayerHPBar.ScaleToAsync(1.045, 120, Easing.CubicOut),
+                PlayerHPLabel.ScaleToAsync(1.12, 120, Easing.CubicOut));
+            await Task.WhenAll(
+                PlayerHPBar.ScaleToAsync(1, 180, Easing.CubicIn),
+                PlayerHPLabel.ScaleToAsync(1, 180, Easing.CubicIn));
+            PlayerHPLabel.TextColor = originalTextColor;
+        }
+        catch
+        {
+            PlayerHPBar.Scale = 1;
+            PlayerHPLabel.Scale = 1;
+            PlayerHealFill.Opacity = 0;
+        }
     }
 
 
@@ -1802,6 +2017,8 @@ public partial class CombatView : ContentView
                     HorizontalOptions = LayoutOptions.Center,
                     TranslationY = 3
                 };
+            if (RarityVisuals.IsRainbowRare(result.Chance))
+                lootLabel.FormattedText = RarityVisuals.RainbowText(lootLabel.Text ?? string.Empty);
 
             LootContainer.Children.Add(
                 new HorizontalStackLayout
@@ -1810,18 +2027,64 @@ public partial class CombatView : ContentView
                     Spacing = 6,
                     Children =
                     {
-                        new Image
-                        {
-                            Source = result.Item.IconImage,
-                            WidthRequest = 20,
-                            HeightRequest = 20,
-                            Aspect = Aspect.AspectFit
-                        },
+                        RarityVisuals.CreateItemVisual(
+                            result.Item,
+                            20,
+                            rarityOverride: result.Rarity),
                         lootLabel
                     }
                 });
         }
 
+    }
+
+    private static void AddRarityDecoration(
+        Grid host,
+        DropRarity rarity,
+        double size)
+    {
+        if (rarity == DropRarity.Common)
+            return;
+
+        Color color = GameThemeCache.GetRarityColor(rarity);
+        Border glow = new()
+        {
+            Stroke = color,
+            StrokeThickness = 1,
+            BackgroundColor = color.WithAlpha(0.08f),
+            Opacity = 0.55,
+            InputTransparent = true,
+            WidthRequest = size * 0.86,
+            HeightRequest = size * 0.86,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        };
+        host.Children.Add(glow);
+
+        Label sparkle = new()
+        {
+            Text = "✦",
+            FontSize = Math.Max(7, size * 0.42),
+            TextColor = color,
+            Opacity = 0.25,
+            InputTransparent = true,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Start,
+            TranslationX = 2,
+            TranslationY = -2
+        };
+        host.Children.Add(sparkle);
+
+        new Animation
+        {
+            { 0, 0.5, new Animation(value => glow.Opacity = value, 0.2, 0.75) },
+            { 0.5, 1, new Animation(value => glow.Opacity = value, 0.75, 0.2) }
+        }.Commit(glow, "dropGlow", 16, 1100, Easing.SinInOut, repeat: () => true);
+        new Animation
+        {
+            { 0, 0.5, new Animation(value => sparkle.Opacity = value, 0.1, 1) },
+            { 0.5, 1, new Animation(value => sparkle.Opacity = value, 1, 0.1) }
+        }.Commit(sparkle, "dropSparkle", 16, 900, Easing.SinInOut, repeat: () => true);
     }
 
     private static string FormatDropRarity(DropRarity rarity)
@@ -1948,6 +2211,16 @@ public partial class CombatView : ContentView
 
             UpdateEnemyPortraitAppearance();
             UpdateHPBars();
+
+            if (!_combatManager.IsAutoFightEnabled)
+            {
+                _autoFightEnabled = false;
+                AutoFightButton.Text = "Auto";
+                AutoFightButton.Variant = GoldSliceButtonVariant.Neutral;
+                AutoFightButton.TextColor = Colors.White;
+                UpdateAutoFightIndicator(false);
+                AutoFightStatusLabel.Text = string.Empty;
+            }
         });
     }
 

@@ -206,7 +206,10 @@ public partial class CollectionLogView : ContentView
                 new Label
                 {
                     Text =
-                        $"{enemy.Name} ({obtainedDrops}/{totalDrops}) — {killCount:N0} kills",
+                        $"{enemy.Name} ({obtainedDrops}/{totalDrops}) — {killCount:N0} kills" +
+                        (enemy.Traits.Count == 0
+                            ? string.Empty
+                            : $"\n{string.Join(" • ", enemy.Traits.Select(EnemyTraitRules.Name))}"),
                     FontSize = 17,
                     FontAttributes = FontAttributes.Bold,
                     TextColor = complete
@@ -352,7 +355,10 @@ public partial class CollectionLogView : ContentView
             enemy.Name;
 
         EnemyDetailCombatLevelLabel.Text =
-            $"Combat level {enemy.CombatLevel}";
+            $"lvl {enemy.CombatLevel}";
+
+        EnemyDetailTraitsLabel.FormattedText = BuildEnemyTraitsText(enemy);
+        EnemyDetailTraitsLabel.IsVisible = enemy.Traits.Count > 0;
 
         EnemyDetailDescriptionLabel.Text =
             enemy.Description;
@@ -386,34 +392,30 @@ public partial class CollectionLogView : ContentView
                         }
                 };
 
-            if (obtained)
-            {
-                dropRow.Add(
-                    new Image
-                    {
-                        Source = drop.Item.IconImage,
-                        WidthRequest = 18,
-                        HeightRequest = 18,
-                        Aspect = Aspect.AspectFit
-                    },
-                    0);
-            }
-
-            dropRow.Add(
-                new Label
+            View itemVisual = obtained
+                ? RarityVisuals.CreateItemVisual(drop.Item, 18)
+                : new Image
                 {
-                    Text = obtained
-                        ? drop.Item.Name
-                        : "???",
-                    FontSize = 15,
-                    TextColor = obtained
-                        ? GetRarityColor(drop.Rarity)
-                        : Colors.Red,
-                    VerticalOptions = LayoutOptions.Center,
-                    TranslationX = 3,
-                    TranslationY = 1
-                },
-                1);
+                    Source = drop.Item.IconImage,
+                    WidthRequest = 18,
+                    HeightRequest = 18,
+                    Opacity = 0.28,
+                    Aspect = Aspect.AspectFit
+                };
+            dropRow.Add(itemVisual, 0);
+
+            Label itemLabel = new()
+            {
+                Text = obtained ? drop.Item.Name : $"???  ({drop.Chance:P2})",
+                FontSize = 15,
+                TextColor = obtained ? GetRarityColor(drop.Rarity) : Colors.Red,
+                VerticalOptions = LayoutOptions.Center,
+                TranslationX = 3,
+                TranslationY = 1
+            };
+            if (obtained && RarityVisuals.IsRainbowRare(drop.Chance))
+                itemLabel.FormattedText = RarityVisuals.RainbowText(itemLabel.Text ?? string.Empty);
+            dropRow.Add(itemLabel, 1);
 
             dropRow.Add(
                 new Label
@@ -432,6 +434,9 @@ public partial class CollectionLogView : ContentView
 
             DropList.Children.Add(dropRow);
         }
+
+        DropList.Opacity = 0;
+        _ = DropList.FadeToAsync(1, 220, Easing.CubicOut);
     }
 
     private static string FormatRarity(
@@ -444,6 +449,26 @@ public partial class CollectionLogView : ContentView
             DropRarity.MegaRare => "Mega Rare",
             _ => rarity.ToString()
         };
+    }
+
+    private static FormattedString BuildEnemyTraitsText(Enemy enemy)
+    {
+        FormattedString result = new();
+        if (enemy.Traits.Count == 0)
+            return result;
+        result.Spans.Add(new Span { Text = "Traits: ", TextColor = Colors.White });
+        for (int index = 0; index < enemy.Traits.Count; index++)
+        {
+            if (index > 0)
+                result.Spans.Add(new Span { Text = " • ", TextColor = Colors.White });
+            EnemyTrait trait = enemy.Traits[index];
+            result.Spans.Add(new Span
+            {
+                Text = EnemyTraitRules.Name(trait),
+                TextColor = EnemyTraitRules.Color(trait)
+            });
+        }
+        return result;
     }
 
     private static Color GetRarityColor(DropRarity rarity)

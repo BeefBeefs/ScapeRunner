@@ -422,10 +422,15 @@ public partial class GamePage : ContentPage
     private static string BuildOfflineCombatXPMessage(
         OfflineCombatSimulation simulation)
     {
+        double hours = simulation.TicksProcessed * ActivityMetrics.SecondsPerTick / 3600d;
+        string rate = hours > 0
+            ? $"\nAverage: {simulation.Kills / hours:0.0} kills/hr • " +
+              $"{(simulation.HPXPGranted + simulation.StyleXPGranted) / hours:0} XP/hr"
+            : string.Empty;
         return "Offline combat simulation complete!\n" +
                $"Combat XP: {simulation.HPXPGranted:N0} HP, " +
                $"{simulation.StyleXPGranted:N0} " +
-               $"{simulation.CombatStyle} XP";
+               $"{simulation.CombatStyle} XP" + rate;
     }
 
     private static string BuildOfflineCombatDeathMessage(
@@ -436,8 +441,10 @@ public partial class GamePage : ContentPage
             ? enemyName
             : $"{enemyName}s";
 
+        double hours = simulation.TicksProcessed * ActivityMetrics.SecondsPerTick / 3600d;
+        string rate = hours > 0 ? $"\nAverage: {simulation.Kills / hours:0.0} kills/hr" : string.Empty;
         return $"You died after killing {simulation.Kills:N0} {enemyLabel}.\n" +
-               "Your offline combat run has ended.";
+               "Your offline combat run has ended." + rate;
     }
 
     private void ShowOfflineSkillingSummary(
@@ -474,11 +481,26 @@ public partial class GamePage : ContentPage
             });
         }
 
+        Skill? skill = Player.Skills.FirstOrDefault(item => item.Name == summary.SkillName);
+        SkillActivity? activity = skill?.Activities.FirstOrDefault(item => item.Name == summary.ActivityName);
+        if (activity != null)
+        {
+            rewards.Spans.Add(new Span
+            {
+                Text = $"Rate: {ActivityMetrics.FormatRate(ActivityMetrics.XpPerHour(activity))} XP/hr" +
+                       (activity.ItemReward == null
+                           ? "\n"
+                           : $" • {ActivityMetrics.FormatRate(ActivityMetrics.ItemsPerHour(activity))}/hr {activity.ItemReward.Name}\n"),
+                TextColor = Color.FromArgb("#62C7FF")
+            });
+        }
+
         if (!string.IsNullOrWhiteSpace(summary.PetName))
         {
-            AddRainbowText(
-                rewards,
-                $"*NEW* Skilling pet: {summary.PetName}!");
+            rewards.Spans.Add(new Span { Text = "*NEW* Skilling pet: " });
+            FormattedString petText = RarityVisuals.RainbowText($"{summary.PetName}!");
+            foreach (Span span in petText.Spans)
+                rewards.Spans.Add(span);
         }
 
         OfflineSkillingRewardsLabel.Text = "";
@@ -734,7 +756,8 @@ public partial class GamePage : ContentPage
         _homeView ??=
             new HomeView(
                 Player,
-                CombatManager);
+                CombatManager,
+                ActivityManager);
 
         _homeView.RefreshDisplay();
 
@@ -886,6 +909,36 @@ public partial class GamePage : ContentPage
                 : Colors.Transparent;
 
             button.StrokeThickness = isSelected ? 1 : 0;
+
+            button.AbortAnimation("navSelect");
+            button.Scale = 1;
+            if (isSelected)
+            {
+                new Animation
+                {
+                    { 0.0, 0.45, new Animation(value => button.Scale = value, 1, 1.08) },
+                    { 0.45, 1.0, new Animation(value => button.Scale = value, 1.08, 1) }
+                }.Commit(button, "navSelect", 16, 220, Easing.CubicOut);
+            }
+        }
+
+        _ = AnimatePageTransitionAsync();
+    }
+
+    private async Task AnimatePageTransitionAsync()
+    {
+        try
+        {
+            GameContent.Opacity = 0.82;
+            GameContent.TranslationX = 6;
+            await Task.WhenAll(
+                GameContent.FadeToAsync(1, 140, Easing.CubicOut),
+                GameContent.TranslateToAsync(0, 0, 140, Easing.CubicOut));
+        }
+        catch
+        {
+            GameContent.Opacity = 1;
+            GameContent.TranslationX = 0;
         }
     }
 

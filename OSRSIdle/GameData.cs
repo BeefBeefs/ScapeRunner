@@ -223,7 +223,7 @@ public static class GameData
         new SkillActivity
         {
             Name = "Magic Tree",
-            Icon = "🏃",
+            Icon = "🌳",
             RequiredLevel = 75,
             XP = 250,
             ActionTime = 12,

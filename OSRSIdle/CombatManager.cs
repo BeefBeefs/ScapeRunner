@@ -81,6 +81,8 @@ public class CombatManager
 
     public event Action<CombatHitEventArgs>? AttackPerformed;
 
+    public event Action<AutoEatEventArgs>? AutoEatPerformed;
+
     public event Action<Enemy>? EnemyDefeated;
 
     public event Action? PlayerDefeated;
@@ -162,6 +164,7 @@ public class CombatManager
     public void SetAutoFightEnabled(bool enabled)
     {
         IsAutoFightEnabled = enabled;
+        CombatUpdated?.Invoke();
     }
 
     public void UpdateAutoFightRespawn(
@@ -444,7 +447,9 @@ public class CombatManager
             int enemyAttackTicks =
                 Math.Max(
                     1,
-                    enemy.AttackSpeedTicks);
+                    enemy.Traits.Contains(EnemyTrait.Frenzied)
+                        ? (int)Math.Floor(enemy.AttackSpeedTicks * 0.9)
+                        : enemy.AttackSpeedTicks);
 
 
             double playerAttackMilliseconds =
@@ -564,7 +569,9 @@ public class CombatManager
         bool hit =
             RollAccuracy(
                 Player.GetEffectiveAttackLevel(),
-                enemy.Defense);
+                enemy.Traits.Contains(EnemyTrait.Armored)
+                    ? (int)Math.Ceiling(enemy.Defense * 1.15)
+                    : enemy.Defense);
 
 
         // --------------------------------------------------------
@@ -590,6 +597,9 @@ public class CombatManager
         int damage =
             RollDamage(
                 Player.GetEffectiveStrengthLevel());
+
+        if (enemy.Traits.Contains(EnemyTrait.Armored))
+            damage = Math.Max(1, (int)Math.Floor(damage * 0.85));
 
 
         // --------------------------------------------------------
@@ -686,7 +696,9 @@ public class CombatManager
 
         bool hit =
             RollAccuracy(
-                enemy.Attack,
+                enemy.Traits.Contains(EnemyTrait.Accurate)
+                    ? (int)Math.Ceiling(enemy.Attack * 1.1)
+                    : enemy.Attack,
                 Player.GetEffectiveDefenseLevel());
 
 
@@ -723,6 +735,9 @@ public class CombatManager
             Math.Max(
                 0,
                 Player.CurrentHP - damage);
+
+        if (enemy.Traits.Contains(EnemyTrait.Regenerative))
+            enemy.CurrentHP = Math.Min(enemy.HP, enemy.CurrentHP + Math.Max(1, enemy.HP / 100));
 
         TryAutoEat();
 
@@ -768,10 +783,18 @@ public class CombatManager
         if (AutoEatCooldownTicks > 0 || !Player.ShouldAutoEat())
             return false;
 
+        Item? food = Player.EquippedFood;
+        int previousHP = Player.CurrentHP;
         if (!Player.TryConsumeEquippedFood())
             return false;
 
         AutoEatCooldownTicks = AutoEatCooldownDurationTicks;
+        if (food != null)
+            AutoEatPerformed?.Invoke(
+                new AutoEatEventArgs(
+                    food,
+                    previousHP,
+                    Player.CurrentHP));
         return true;
     }
 
@@ -840,7 +863,11 @@ public class CombatManager
     {
         int oldLevel = skill.Level;
 
-        skill.AddXP(xp);
+        Enemy? enemy = CurrentEnemy;
+        double bonus = enemy == null
+            ? 0
+            : ProgressionBonuses.CombatXpPercent(Player, enemy) / 100d;
+        skill.AddXP(xp * (1 + bonus));
 
         int newLevel = skill.Level;
 
@@ -1000,5 +1027,19 @@ public class CombatHitEventArgs : EventArgs
 
         Damage =
             damage;
+    }
+}
+
+public sealed class AutoEatEventArgs : EventArgs
+{
+    public Item Food { get; }
+    public int PreviousHP { get; }
+    public int CurrentHP { get; }
+
+    public AutoEatEventArgs(Item food, int previousHP, int currentHP)
+    {
+        Food = food;
+        PreviousHP = previousHP;
+        CurrentHP = currentHP;
     }
 }

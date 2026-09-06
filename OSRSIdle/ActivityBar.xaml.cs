@@ -629,13 +629,20 @@ public partial class ActivityBar : ContentView
     {
         if (_combatManager.IsInCombat)
         {
-            _combatManager.StopCombat();
+            _combatManager.AbortCombatEncounter();
+
+            UpdateDisplay();
 
             return;
         }
 
-
+        // "Run" is also the escape hatch from an auto-fight respawn. Clear
+        // every auto-fight flag so the combat button returns to its neutral
+        // state instead of remaining green for the next encounter.
+        _combatManager.SetAutoFightEnabled(false);
+        _combatManager.ClearAutoFightRespawn();
         _activityManager.StopActivity();
+        UpdateDisplay();
     }
 // ============================================================
 // UPDATE COMBAT XP

@@ -117,13 +117,21 @@
 
                     </Border>
 
-                    <Label
-                        x:Name="EnemyDetailDescriptionLabel"
+                        <Label
+                            x:Name="EnemyDetailDescriptionLabel"
                         FontSize="14"
                         TextColor="#FFE26A"
                         HorizontalOptions="Center"
                         HorizontalTextAlignment="Center"
-                        MaximumWidthRequest="320" />
+                            MaximumWidthRequest="320" />
+
+                        <Label
+                            x:Name="EnemyDetailTraitsLabel"
+                            FontSize="12"
+                            TextColor="#FFB347"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            IsVisible="False" />
 
                     <HorizontalStackLayout
                         Spacing="8"

@@ -6,6 +6,8 @@ public partial class HomeView : ContentView
 
     private readonly CombatManager _combatManager;
 
+    private readonly ActivityManager _activityManager;
+
 
     // ============================================================
     // CONSTRUCTOR
@@ -13,7 +15,8 @@ public partial class HomeView : ContentView
 
     public HomeView(
         Player player,
-        CombatManager combatManager)
+        CombatManager combatManager,
+        ActivityManager activityManager)
     {
         InitializeComponent();
 
@@ -22,6 +25,9 @@ public partial class HomeView : ContentView
 
         _combatManager =
             combatManager;
+
+        _activityManager =
+            activityManager;
 
         ConfigureEquipmentSlot(HeadSlot, EquipmentSlot.Head);
         ConfigureEquipmentSlot(AmuletSlot, EquipmentSlot.Amulet);
@@ -40,6 +46,9 @@ public partial class HomeView : ContentView
 
         _combatManager.XPChanged +=
             OnXPChanged;
+
+        _activityManager.ActivityChanged +=
+            OnActivityChanged;
 
         _player.EquipmentChanged +=
             OnEquipmentChanged;
@@ -79,6 +88,9 @@ public partial class HomeView : ContentView
         _combatManager.XPChanged -=
             OnXPChanged;
 
+        _activityManager.ActivityChanged -=
+            OnActivityChanged;
+
         _player.EquipmentChanged -=
             OnEquipmentChanged;
 
@@ -111,6 +123,13 @@ public partial class HomeView : ContentView
         {
             UpdateDisplay();
         });
+    }
+
+    private void OnActivityChanged(
+        object? sender,
+        EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(UpdateActivityEfficiency);
     }
 
     private void OnAutoEatSettingsChanged()
@@ -157,6 +176,8 @@ public partial class HomeView : ContentView
             $"Total enemies killed: {_player.CollectionLog.GetTotalKillCount():N0}";
         GlobalDropBoostLabel.Text =
             $"Global drop boost: {_player.GlobalDropBoostPercent:0.0}%";
+
+        UpdateActivityEfficiency();
 
         AutoEatThresholdSlider.Value = _player.AutoEatThresholdPercent;
         AutoEatThresholdLabel.Text = $"{_player.AutoEatThresholdPercent}%";
@@ -238,6 +259,25 @@ public partial class HomeView : ContentView
             DefenseXPFill,
             DefenseXPLabel,
             _player.Defense);
+    }
+
+    private void UpdateActivityEfficiency()
+    {
+        if (!_activityManager.IsActive ||
+            _activityManager.CurrentSkill == null ||
+            _activityManager.CurrentActivity == null)
+        {
+            ActivityEfficiencyLabel.Text = "No skilling activity";
+            return;
+        }
+
+        SkillActivity activity = _activityManager.CurrentActivity;
+        ActivityEfficiencyLabel.Text =
+            $"{activity.Name}: " +
+            $"{ActivityMetrics.FormatRate(ActivityMetrics.XpPerHour(activity))} XP/hr" +
+            (activity.ItemReward == null
+                ? ""
+                : $"  •  {ActivityMetrics.FormatRate(ActivityMetrics.ItemsPerHour(activity))}/hr {activity.ItemReward.Name}");
     }
 
     private void UpdateLuckiestDropDisplay()

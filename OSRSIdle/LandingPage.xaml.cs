@@ -53,6 +53,10 @@ public partial class LandingPage : ContentPage
         LastActivityLabel.Text = preview.LastActivity;
         OfflineTicksLabel.Text = preview.OfflineTicks.ToString("N0");
         _offlineSavedAtUtc = preview.SavedAtUtc;
+        SaveStatusLabel.Text = SaveManager.RecoveredFromBackup
+            ? "Your previous save was recovered from a backup."
+            : SaveManager.LastError;
+        SaveStatusLabel.IsVisible = !string.IsNullOrWhiteSpace(SaveStatusLabel.Text);
     }
 
     private void StartOfflineTickTimer()

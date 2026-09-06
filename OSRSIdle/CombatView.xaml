@@ -74,6 +74,13 @@
                             HorizontalOptions="Center"
                             HorizontalTextAlignment="Center" />
 
+                        <Label
+                            x:Name="EnemyTraitsLabel"
+                            FontSize="12"
+                            TextColor="#FFB347"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center" />
+
                         <HorizontalStackLayout
                             Spacing="8"
                             HorizontalOptions="Center">
@@ -228,7 +235,9 @@
 
                     <!-- Player -->
 
-                    <Border Style="{StaticResource GamePanelBorder}">
+                    <Border
+                        x:Name="PlayerPanel"
+                        Style="{StaticResource GamePanelBorder}">
 
                         <VerticalStackLayout
                             Spacing="5">
@@ -257,6 +266,14 @@
                                 HorizontalOptions="Start"
                                 VerticalOptions="Fill"
                                 BackgroundColor="Green"
+                                AnchorX="0" />
+
+                            <BoxView
+                                x:Name="PlayerHealFill"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Fill"
+                                BackgroundColor="#8BFF9D"
+                                Opacity="0"
                                 AnchorX="0" />
 
                             <Label

@@ -174,6 +174,16 @@
                 Clicked="OnSellJunkClicked"
                 IsVisible="False" />
 
+            <Grid
+                x:Name="BulkSellControls"
+                ColumnDefinitions="*,*,*"
+                ColumnSpacing="4"
+                IsVisible="False">
+                <local:GoldSliceButton Grid.Column="0" Text="Sell 1" FontSize="11" Variant="Neutral" Clicked="OnSellOneJunkClicked" />
+                <local:GoldSliceButton Grid.Column="1" Text="Sell 10" FontSize="11" Variant="Neutral" Clicked="OnSellTenJunkClicked" />
+                <local:GoldSliceButton Grid.Column="2" Text="Sell Half" FontSize="11" Variant="Neutral" Clicked="OnSellHalfJunkClicked" />
+            </Grid>
+
             </VerticalStackLayout>
 
         </Border>

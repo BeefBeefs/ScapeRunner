@@ -8,7 +8,8 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
 
-        game = ((App)Application.Current).Game;
+        game = ((App?)Application.Current)?.Game
+            ?? throw new InvalidOperationException("Application is not initialized.");
 
         BuildSkillList();
     }

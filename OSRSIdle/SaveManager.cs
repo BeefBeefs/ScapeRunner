@@ -5,6 +5,7 @@ namespace OSRSIdle;
 public static class SaveManager
 {
     private const string SaveFileName = "osrsidle-save.json";
+    private const string BackupFileName = "osrsidle-save.backup.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -18,6 +19,11 @@ public static class SaveManager
 
     private static string SavePath =>
         Path.Combine(FileSystem.AppDataDirectory, SaveFileName);
+    private static string BackupPath =>
+        Path.Combine(FileSystem.AppDataDirectory, BackupFileName);
+
+    public static string? LastError { get; private set; }
+    public static bool RecoveredFromBackup { get; private set; }
 
     public static void Save(
         Player player,
@@ -91,13 +97,15 @@ public static class SaveManager
                 if (requestId < _lastWrittenRequest)
                     return;
 
+                if (File.Exists(SavePath))
+                    File.Copy(SavePath, BackupPath, true);
                 File.WriteAllText(SavePath, json);
                 _lastWrittenRequest = requestId;
             }
         }
-        catch
+        catch (Exception exception)
         {
-            // Saving must never prevent a clean application shutdown.
+            LastError = $"Save failed: {exception.Message}";
         }
     }
 
@@ -204,9 +212,27 @@ public static class SaveManager
                 saveData.ActiveActivity,
                 saveData.LastCombatStyle);
         }
-        catch
+        catch (Exception exception)
         {
-            // A damaged or outdated save falls back to a fresh character.
+            LastError = $"Save could not be loaded: {exception.Message}";
+            try
+            {
+                if (File.Exists(BackupPath))
+                {
+                    string backupJson = File.ReadAllText(BackupPath);
+                    PlayerSaveData? backup = JsonSerializer.Deserialize<PlayerSaveData>(backupJson, JsonOptions);
+                    if (backup != null && backup.Version == 1)
+                    {
+                        File.Copy(BackupPath, SavePath, true);
+                        RecoveredFromBackup = true;
+                        return Load(player);
+                    }
+                }
+            }
+            catch (Exception backupException)
+            {
+                LastError += $" Backup recovery failed: {backupException.Message}";
+            }
             return OfflineProgressLoadResult.None;
         }
     }

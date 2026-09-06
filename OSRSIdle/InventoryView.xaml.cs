@@ -541,6 +541,7 @@ public partial class InventoryView : ContentView
         SellJunkButton.IsEnabled = junkItemCount > 0;
         SellJunkButton.IsVisible =
             _selectedCategory == InventoryCategory.Junk;
+        BulkSellControls.IsVisible = SellJunkButton.IsVisible;
     }
 
     private bool IsInSelectedCategory(Item item)
@@ -569,18 +570,36 @@ public partial class InventoryView : ContentView
         object sender,
         EventArgs e)
     {
+        SellJunk(BulkSellMode.All);
+    }
+
+    private void OnSellOneJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.One);
+    private void OnSellTenJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.Ten);
+    private void OnSellHalfJunkClicked(object sender, EventArgs e) => SellJunk(BulkSellMode.Half);
+
+    private enum BulkSellMode { One, Ten, Half, All }
+
+    private void SellJunk(BulkSellMode mode)
+    {
         List<InventoryItem> junkItems = _inventory.Items
             .Where(entry => entry.Item.IsJunk)
             .ToList();
 
-        long totalGold = junkItems.Sum(entry =>
-            (long)entry.Item.Value * entry.Quantity);
+        long totalGold = 0;
 
         foreach (InventoryItem junkItem in junkItems)
         {
+            int quantity = mode switch
+            {
+                BulkSellMode.One => Math.Min(1, junkItem.Quantity),
+                BulkSellMode.Ten => Math.Min(10, junkItem.Quantity),
+                BulkSellMode.Half => Math.Max(1, junkItem.Quantity / 2),
+                _ => junkItem.Quantity
+            };
+            totalGold += (long)junkItem.Item.Value * quantity;
             _inventory.RemoveItem(
                 junkItem.Item,
-                junkItem.Quantity);
+                quantity);
         }
 
         if (totalGold > 0)
@@ -606,22 +625,6 @@ public partial class InventoryView : ContentView
         // --------------------------------------------------------
         // Item icon.
         // --------------------------------------------------------
-
-        Image itemIcon =
-            new Image
-            {
-                Source = inventoryItem.Item.IconImage,
-                WidthRequest = 32,
-                HeightRequest = 32,
-                Aspect = Aspect.AspectFit,
-
-                HorizontalOptions =
-                    LayoutOptions.Center,
-
-                VerticalOptions =
-                    LayoutOptions.Center
-            };
-
 
         // --------------------------------------------------------
         // Quantity.
@@ -649,7 +652,9 @@ public partial class InventoryView : ContentView
 
 
         slotContent.Children.Add(
-            itemIcon);
+            RarityVisuals.CreateItemVisual(
+                inventoryItem.Item,
+                32));
 
         slotContent.Children.Add(
             quantityLabel);
@@ -678,7 +683,7 @@ public partial class InventoryView : ContentView
                     : isEquippedFood
                         ? Color.FromArgb("#2D7D46")
                         : Color.FromArgb("#4A4A4A"),
-                Stroke = Color.FromArgb("#D99032"),
+                Stroke = GetItemStrokeColor(inventoryItem.Item),
                 StrokeThickness = 2,
                 VerticalOptions = LayoutOptions.Start
             };
@@ -705,6 +710,22 @@ public partial class InventoryView : ContentView
 
 
         return itemSlot;
+    }
+
+    private static Color GetItemStrokeColor(Item item)
+    {
+        DropRarity rarity = RarityVisuals.GetRarity(item);
+        return rarity == DropRarity.Common
+            ? Color.FromArgb("#D99032")
+            : rarity switch
+            {
+                DropRarity.Uncommon => Color.FromArgb("#62C7FF"),
+                DropRarity.Rare => Color.FromArgb("#C882FF"),
+                DropRarity.VeryRare => Color.FromArgb("#FF87C2"),
+                DropRarity.SuperRare => Color.FromArgb("#FFD24A"),
+                DropRarity.MegaRare => Color.FromArgb("#FF6868"),
+                _ => Color.FromArgb("#D99032")
+            };
     }
 
 

@@ -121,4 +121,6 @@ public class Enemy
     public int CombatLevel => Math.Max(
         1,
         (Attack + Defense + Strength + HP) / 4);
+
+    public IReadOnlyList<EnemyTrait> Traits => EnemyTraitRules.For(this);
 }

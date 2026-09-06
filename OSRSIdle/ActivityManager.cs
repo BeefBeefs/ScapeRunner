@@ -103,7 +103,7 @@ public class ActivityManager
             DateTime.UtcNow;
 
         ActionEnds = ActionStarted.AddMilliseconds(
-            CurrentActivity.ActionTicks * 600);
+            ActivityMetrics.EffectiveActionTicks(CurrentActivity) * 600);
     }
 
 

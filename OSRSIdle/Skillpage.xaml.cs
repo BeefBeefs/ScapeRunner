@@ -64,6 +64,12 @@ public partial class SkillPage : ContentView
             UpdateSkillHeader();
 
             UpdateActivityButtons();
+
+            if (_activityManager.CurrentActivity is SkillActivity activity &&
+                _activityCards.TryGetValue(activity, out ActivityCardUI? card))
+            {
+                _ = PlayActionCompleteFeedbackAsync(card);
+            }
         });
     }
 
@@ -131,9 +137,28 @@ public partial class SkillPage : ContentView
             Label timeLabel = new Label
             {
                 Text =
-                    $"{activity.ActionTicks} tick{(activity.ActionTicks == 1 ? "" : "s")}",
+                    $"{ActivityMetrics.EffectiveActionTicks(activity)} ticks",
 
                 FontSize = 14
+            };
+
+            Label efficiencyLabel = new()
+            {
+                FontSize = 13,
+                TextColor = Color.FromArgb("#FFE26A")
+            };
+
+            Label badgeLabel = new()
+            {
+                FontSize = 12,
+                TextColor = Color.FromArgb("#62C7FF"),
+                FontAttributes = FontAttributes.Bold
+            };
+
+            Label unlockLabel = new()
+            {
+                FontSize = 12,
+                TextColor = Color.FromArgb("#B0B0B0")
             };
 
             Label? rewardLabel =
@@ -197,6 +222,10 @@ public partial class SkillPage : ContentView
             activityCard.Children.Add(
                 timeLabel);
 
+            activityCard.Children.Add(efficiencyLabel);
+            activityCard.Children.Add(badgeLabel);
+            activityCard.Children.Add(unlockLabel);
+
             if (rewardLabel != null)
             {
                 activityCard.Children.Add(
@@ -220,7 +249,12 @@ public partial class SkillPage : ContentView
                 Panel = cardPanel,
                 TrainingProgress = trainingProgress,
                 TrainingTrack = trainingTrack,
-                TrainingFill = trainingFill
+                TrainingFill = trainingFill,
+                RewardLabel = rewardLabel,
+                EfficiencyLabel = efficiencyLabel,
+                BadgeLabel = badgeLabel,
+                UnlockLabel = unlockLabel,
+                Activity = activity
             };
             _activityCards[activity] = card;
         }
@@ -243,17 +277,86 @@ public partial class SkillPage : ContentView
 
             if (_activityCards.TryGetValue(activity, out ActivityCardUI? card))
             {
+                bool unlocked = _skill.Level >= activity.RequiredLevel;
+                UpdateActivityMetrics(card, unlocked);
+
                 bool isTraining = _activityManager.CurrentActivity == activity;
                 card.Panel.BackgroundColor = isTraining
                     ? Color.FromArgb("#254F33")
-                    : Color.FromArgb("#E64A4A4A");
+                    : unlocked
+                        ? Color.FromArgb("#E64A4A4A")
+                        : Color.FromArgb("#292929");
+                card.Panel.Opacity = isTraining || unlocked ? 1 : 0.62;
                 card.Panel.Stroke = isTraining
                     ? Color.FromArgb("#42A85A")
-                    : Color.FromArgb("#D99032");
+                    : unlocked
+                        ? Color.FromArgb("#D99032")
+                        : Color.FromArgb("#555555");
                 card.TrainingProgress.IsVisible = isTraining;
                 UpdateTrainingProgress(card);
             }
         }
+    }
+
+    private void UpdateActivityMetrics(ActivityCardUI card, bool unlocked)
+    {
+        SkillActivity activity = card.Activity;
+        card.EfficiencyLabel.Text =
+            $"{ActivityMetrics.FormatRate(ActivityMetrics.XpPerHour(activity))} XP/hr" +
+            (activity.ItemReward == null
+                ? ""
+                : $"  •  {ActivityMetrics.FormatRate(ActivityMetrics.ItemsPerHour(activity))}/hr {activity.ItemReward.Name}");
+        string bonus = ProgressionBonuses.Format(ProgressionBonuses.SkillXpPercent(_skill));
+        if (!string.IsNullOrEmpty(bonus))
+            card.EfficiencyLabel.Text += $"  •  {bonus}";
+
+        List<string> badges = new();
+        if (unlocked && _skill.Activities
+                .Where(candidate => _skill.Level >= candidate.RequiredLevel)
+                .OrderByDescending(ActivityMetrics.XpPerHour)
+                .FirstOrDefault() == activity)
+        {
+            badges.Add("★ BEST XP/HR");
+        }
+
+        if (unlocked && _skill.Activities
+                .Where(candidate => _skill.Level >= candidate.RequiredLevel)
+                .OrderBy(ActivityMetrics.EffectiveActionTicks)
+                .ThenByDescending(ActivityMetrics.XpPerHour)
+                .FirstOrDefault() == activity)
+        {
+            badges.Add("⚡ FASTEST");
+        }
+
+        card.BadgeLabel.Text = string.Join("  •  ", badges);
+        card.BadgeLabel.IsVisible = badges.Count > 0;
+
+        if (unlocked)
+        {
+            card.UnlockLabel.Text = "";
+            card.UnlockLabel.IsVisible = false;
+            return;
+        }
+
+        SkillActivity? reference = _skill.Activities
+            .Where(candidate => _skill.Level >= candidate.RequiredLevel)
+            .OrderByDescending(ActivityMetrics.XpPerHour)
+            .FirstOrDefault();
+        double xpPerHour = reference == null
+            ? 0
+            : ActivityMetrics.XpPerHour(reference);
+        double xpNeeded = Math.Max(
+            0,
+            ExperienceTable.GetXPForLevel(activity.RequiredLevel) - _skill.XP);
+        double secondsToUnlock = xpPerHour <= 0
+            ? 0
+            : xpNeeded / xpPerHour * 3600d;
+        card.UnlockLabel.Text =
+            $"Unlocks at level {activity.RequiredLevel}" +
+            (secondsToUnlock > 0
+                ? $"  •  ~{ActivityMetrics.FormatDuration(secondsToUnlock)} at current pace"
+                : "");
+        card.UnlockLabel.IsVisible = true;
     }
 
     // ============================================================
@@ -349,6 +452,37 @@ public partial class SkillPage : ContentView
         card.TrainingFill.WidthRequest = card.TrainingTrack.Width * progress;
     }
 
+    private static async Task PlayActionCompleteFeedbackAsync(ActivityCardUI card)
+    {
+        try
+        {
+            Brush? originalStroke = card.Panel.Stroke;
+            card.Panel.Stroke = Color.FromArgb("#FF9D2E");
+
+            if (card.RewardLabel != null)
+            {
+                Color originalRewardColor = card.RewardLabel.TextColor;
+                card.RewardLabel.TextColor = Color.FromArgb("#FF9D2E");
+                await card.RewardLabel.FadeToAsync(0.55, 70, Easing.CubicOut);
+                await card.RewardLabel.FadeToAsync(1, 180, Easing.CubicIn);
+                card.RewardLabel.TextColor = originalRewardColor;
+            }
+
+            await Task.WhenAll(
+                card.Panel.ScaleToAsync(1.018, 75, Easing.CubicOut),
+                card.TrainingProgress.FadeToAsync(0.65, 75, Easing.CubicOut));
+            await Task.WhenAll(
+                card.Panel.ScaleToAsync(1, 150, Easing.CubicIn),
+                card.TrainingProgress.FadeToAsync(1, 150, Easing.CubicIn));
+
+            card.Panel.Stroke = originalStroke;
+        }
+        catch
+        {
+            card.Panel.Scale = 1;
+        }
+    }
+
     // ============================================================
     // START ACTIVITY
     // ============================================================
@@ -391,5 +525,10 @@ public partial class SkillPage : ContentView
         public required Border TrainingProgress { get; init; }
         public required Grid TrainingTrack { get; init; }
         public required BoxView TrainingFill { get; init; }
+        public Label? RewardLabel { get; init; }
+        public required SkillActivity Activity { get; init; }
+        public required Label EfficiencyLabel { get; init; }
+        public required Label BadgeLabel { get; init; }
+        public required Label UnlockLabel { get; init; }
     }
 }
