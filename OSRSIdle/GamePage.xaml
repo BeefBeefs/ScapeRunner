@@ -490,6 +490,33 @@
 
         </Grid>
 
+
+        <!-- ================================================= -->
+        <!-- DEBUG FPS COUNTER                                -->
+        <!-- ================================================= -->
+
+        <Border
+            x:Name="FpsDebugOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Margin="0,8,8,0"
+            Padding="6,2"
+            HorizontalOptions="End"
+            VerticalOptions="Start"
+            BackgroundColor="#CC101010"
+            Stroke="#FFE26A"
+            StrokeThickness="1"
+            ZIndex="1000"
+            InputTransparent="True">
+
+            <Label
+                x:Name="FpsDebugLabel"
+                Text="FPS: --"
+                FontSize="12"
+                TextColor="#FFE26A" />
+
+        </Border>
+
     </Grid>
 
 </ContentPage>

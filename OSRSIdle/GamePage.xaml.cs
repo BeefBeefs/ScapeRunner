@@ -51,6 +51,12 @@ public partial class GamePage : ContentPage
 
     private int _healthRegenerationTickCount;
 
+    private IDispatcherTimer? _fpsTimer;
+
+    private DateTime _fpsWindowStartedUtc = DateTime.UtcNow;
+
+    private int _fpsFrameCount;
+
     private bool _offlineSummaryShown;
 
     private bool _offlineCombatPlayerDied;
@@ -80,7 +86,8 @@ public partial class GamePage : ContentPage
         // Create player.
         // --------------------------------------------------------
 
-        _game = ((App)Application.Current!).Game;
+        App app = (App)Application.Current!;
+        _game = app.Game;
 
         CustomDialogService.SetHost(this);
 
@@ -95,8 +102,13 @@ public partial class GamePage : ContentPage
             new ActivityManager(
                 Player);
 
-        CombatManager =
+        (CombatManager? preloadedCombatManager,
+            CombatView? preloadedCombatView) =
+            app.TakePreloadedCombatSession();
+
+        CombatManager = preloadedCombatManager ??
             new CombatManager(Player);
+        _combatView = preloadedCombatView;
 
         _game.SetActivityManagers(
             ActivityManager,
@@ -105,6 +117,7 @@ public partial class GamePage : ContentPage
         _game.ResumeSavedSkillingActivity(ActivityManager);
 
         StartHealthRegenerationTimer();
+        StartFpsCounterTimer();
 
 
         // --------------------------------------------------------
@@ -220,6 +233,31 @@ public partial class GamePage : ContentPage
             Player.CurrentHP + 1);
 
         _game.ScheduleSave();
+    }
+
+    private void StartFpsCounterTimer()
+    {
+        _fpsTimer = Dispatcher.CreateTimer();
+        _fpsTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _fpsTimer.Tick += OnFpsTimerTick;
+        _fpsTimer.Start();
+    }
+
+    private void OnFpsTimerTick(object? sender, EventArgs e)
+    {
+        _fpsFrameCount++;
+
+        DateTime now = DateTime.UtcNow;
+        double elapsedSeconds =
+            (now - _fpsWindowStartedUtc).TotalSeconds;
+
+        if (elapsedSeconds < 1d)
+            return;
+
+        double framesPerSecond = _fpsFrameCount / elapsedSeconds;
+        FpsDebugLabel.Text = $"FPS: {framesPerSecond:0}";
+        _fpsFrameCount = 0;
+        _fpsWindowStartedUtc = now;
     }
 
     private async void OnGamePageLoaded(
@@ -783,6 +821,8 @@ public partial class GamePage : ContentPage
                 CombatManager,
                 ActivityManager);
 
+        _combatView?.SetActive(false);
+        _homeView.SetActive(true);
         _homeView.RefreshDisplay();
 
         GameContent.Content = _homeView;
@@ -794,6 +834,9 @@ public partial class GamePage : ContentPage
 
     public void ShowSkillsPage()
     {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+
         _skillsView ??=
             new SkillsView(
                 Player,
@@ -810,6 +853,9 @@ public partial class GamePage : ContentPage
     public void ShowSkillPage(
         Skill skill)
     {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+
         if (!_skillPages.TryGetValue(skill, out SkillPage? skillPage))
         {
             skillPage = new SkillPage(
@@ -828,6 +874,8 @@ public partial class GamePage : ContentPage
 
     public void ShowCombatPage()
     {
+        _homeView?.SetActive(false);
+
         if (_combatView == null)
         {
             _combatView = new CombatView(
@@ -839,6 +887,7 @@ public partial class GamePage : ContentPage
             _combatView.RefreshEnemyList();
         }
 
+        _combatView.SetActive(true);
         GameContent.Content = _combatView;
 
         _combatView.RefreshCombatDisplay();
@@ -850,6 +899,9 @@ public partial class GamePage : ContentPage
 
     public void ShowInventoryPage()
     {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+
         _inventoryView ??=
             new InventoryView(
                 Player);
@@ -865,6 +917,9 @@ public partial class GamePage : ContentPage
 
     public void ShowCollectionLogPage()
     {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+
         _collectionLogView ??=
             new CollectionLogView(
                 Player.CollectionLog,
@@ -900,6 +955,9 @@ public partial class GamePage : ContentPage
 
     public void ShowSettingsPage()
     {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+
         _settingsView ??= new SettingsView(
             ResetCharacter,
             ReturnToCharacterSelect,
@@ -942,6 +1000,13 @@ public partial class GamePage : ContentPage
             _healthRegenerationTimer.Stop();
             _healthRegenerationTimer.Tick -= OnHealthRegenerationTick;
             _healthRegenerationTimer = null;
+        }
+
+        if (_fpsTimer != null)
+        {
+            _fpsTimer.Stop();
+            _fpsTimer.Tick -= OnFpsTimerTick;
+            _fpsTimer = null;
         }
 
         _settingsView?.Dispose();
@@ -1433,8 +1498,6 @@ public partial class GamePage : ContentPage
         int level,
         CancellationToken cancellationToken)
     {
-        _ = ShowLevelUpFireworksAsync(cancellationToken);
-
         Label heading =
             new Label
             {
@@ -1559,7 +1622,6 @@ public partial class GamePage : ContentPage
     {
         if (loot.Rarity is DropRarity.SuperRare or DropRarity.MegaRare)
         {
-            _ = ShowThreeFireworksAsync(cancellationToken);
         }
 
         string title;
@@ -1677,8 +1739,6 @@ public partial class GamePage : ContentPage
         Enemy enemy,
         CancellationToken cancellationToken)
     {
-        _ = ShowThreeFireworksAsync(cancellationToken);
-
         Label titleLabel =
             new Label
             {
@@ -1756,7 +1816,7 @@ public partial class GamePage : ContentPage
 
 
     // ============================================================
-    // CELEBRATION FIREWORKS
+    // CELEBRATION NOTIFICATIONS
     // ============================================================
 
     private async Task AddCenteredNotificationAsync(
@@ -1877,141 +1937,6 @@ public partial class GamePage : ContentPage
                 AbsoluteLayout.AutoSize,
                 AbsoluteLayout.AutoSize));
     }
-
-    private async Task ShowThreeFireworksAsync(CancellationToken cancellationToken = default)
-    {
-        (Color Color, double X, double Y, int Delay)[] fireworks =
-        {
-            (Color.FromArgb("#FFE26A"), -92, -72, 0),
-            (Color.FromArgb("#62C7FF"), 0, -118, 115),
-            (Color.FromArgb("#FF7DC8"), 92, -72, 230)
-        };
-
-        try
-        {
-            await Task.WhenAll(fireworks.Select(firework =>
-                ShowFireworkAsync(
-                    firework.Color,
-                    firework.X,
-                    firework.Y,
-                    firework.Delay,
-                    cancellationToken)));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    private async Task ShowLevelUpFireworksAsync(CancellationToken cancellationToken = default)
-    {
-        Color[] colors =
-        {
-            Color.FromArgb("#FFE26A"),
-            Color.FromArgb("#62C7FF"),
-            Color.FromArgb("#FF7DC8"),
-            Color.FromArgb("#B783FF"),
-            Color.FromArgb("#68E06F")
-        };
-
-        int fireworkCount = Random.Shared.Next(10, 16);
-        int[] launchTimes = Enumerable.Range(0, fireworkCount)
-            .Select(_ => Random.Shared.Next(0, 3_001))
-            .OrderBy(time => time)
-            .ToArray();
-
-        try
-        {
-            await Task.WhenAll(launchTimes.Select(launchTime =>
-                ShowFireworkAsync(
-                    colors[Random.Shared.Next(colors.Length)],
-                    Random.Shared.Next(-118, 119),
-                    Random.Shared.Next(-150, -24),
-                    launchTime,
-                    cancellationToken)));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    private async Task ShowFireworkAsync(
-        Color color,
-        double x,
-        double y,
-        int delayMilliseconds,
-        CancellationToken cancellationToken = default)
-    {
-        if (delayMilliseconds > 0)
-            await Task.Delay(delayMilliseconds, cancellationToken);
-
-        Grid burst = new Grid
-        {
-            WidthRequest = 72,
-            HeightRequest = 72,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
-            TranslationX = x,
-            TranslationY = y + 20,
-            Scale = 0.2,
-            Opacity = 0,
-            InputTransparent = true
-        };
-
-        burst.Children.Add(new Label
-        {
-            Text = "✦",
-            FontSize = 56,
-            TextColor = color,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center
-        });
-
-        foreach ((double X, double Y) offset in new[]
-                 {
-                     (0d, -28d), (28d, 0d),
-                     (0d, 28d), (-28d, 0d)
-                 })
-        {
-            burst.Children.Add(new Label
-            {
-                Text = "•",
-                FontSize = 15,
-                TextColor = color,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center,
-                TranslationX = offset.X,
-                TranslationY = offset.Y,
-                Opacity = 0.9
-            });
-        }
-
-        try
-        {
-            await AddCenteredNotificationAsync(
-                burst,
-                maximumWidth: 72,
-                horizontalMargin: 0,
-                cancellationToken: cancellationToken);
-
-            await Task.WhenAll(
-                burst.FadeToAsync(1, 70),
-                burst.ScaleToAsync(1.1, 230, Easing.CubicOut),
-                burst.TranslateToAsync(x, y, 230, Easing.CubicOut));
-
-            await Task.Delay(120, cancellationToken);
-
-            await Task.WhenAll(
-                burst.FadeToAsync(0, 330, Easing.CubicIn),
-                burst.ScaleToAsync(1.65, 330, Easing.CubicIn));
-        }
-        finally
-        {
-            NotificationLayer.Children.Remove(burst);
-        }
-    }
-
 
     // ============================================================
     // NAVIGATION BUTTONS

@@ -22,6 +22,8 @@ public partial class ActivityBar : ContentView, IDisposable
     private double _combatXPProgress;
 
     private readonly EventHandler _progressTimerTick;
+    private int _combatUpdatePending;
+    private bool _disposed;
 
 
     // ============================================================
@@ -51,6 +53,9 @@ public partial class ActivityBar : ContentView, IDisposable
 
         _combatManager.CombatStopped +=
             OnCombatChanged;
+
+        _combatManager.CombatUpdated +=
+            OnCombatUpdated;
 
         ActivityProgressBar.SizeChanged += OnActivityProgressBarSizeChanged;
         CombatXPBar.SizeChanged += OnCombatXPBarSizeChanged;
@@ -87,7 +92,35 @@ public partial class ActivityBar : ContentView, IDisposable
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed)
+                return;
+
             UpdateDisplay();
+        });
+    }
+
+    private void OnCombatUpdated()
+    {
+        if (_disposed ||
+            Interlocked.Exchange(ref _combatUpdatePending, 1) != 0)
+        {
+            return;
+        }
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            Interlocked.Exchange(ref _combatUpdatePending, 0);
+
+            if (_disposed)
+                return;
+
+            if (_combatManager.IsAutoFightRespawning)
+                UpdateDisplay();
+            else if (_combatManager.IsInCombat)
+            {
+                UpdateCombatMiniHPBars();
+                UpdateCombatXP();
+            }
         });
     }
 
@@ -102,7 +135,7 @@ public partial class ActivityBar : ContentView, IDisposable
             Dispatcher.CreateTimer();
 
         _progressTimer.Interval =
-            TimeSpan.FromMilliseconds(100);
+            TimeSpan.FromMilliseconds(200);
 
         _progressTimer.Tick += _progressTimerTick;
 
@@ -111,15 +144,13 @@ public partial class ActivityBar : ContentView, IDisposable
 
     private void OnProgressTimerTick(object? sender, EventArgs e)
     {
-        if (_combatManager.IsAutoFightRespawning)
-            UpdateDisplay();
-        else if (_combatManager.IsInCombat)
+        if (_combatManager.IsAutoFightRespawning ||
+            _combatManager.IsInCombat)
         {
-            UpdateCombatMiniHPBars();
-            UpdateCombatXP();
+            return;
         }
-        else
-            UpdateProgress();
+
+        UpdateProgress();
     }
 
     private void OnActivityProgressBarSizeChanged(object? sender, EventArgs e) =>
@@ -133,6 +164,11 @@ public partial class ActivityBar : ContentView, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
         _progressTimer?.Stop();
         if (_progressTimer != null)
             _progressTimer.Tick -= _progressTimerTick;
@@ -140,6 +176,7 @@ public partial class ActivityBar : ContentView, IDisposable
         _activityManager.ActivityStateChanged -= OnActivityChanged;
         _combatManager.CombatStarted -= OnCombatChanged;
         _combatManager.CombatStopped -= OnCombatChanged;
+        _combatManager.CombatUpdated -= OnCombatUpdated;
         ActivityProgressBar.SizeChanged -= OnActivityProgressBarSizeChanged;
         CombatXPBar.SizeChanged -= OnCombatXPBarSizeChanged;
         PlayerMiniHPBar.SizeChanged -= OnMiniHPBarSizeChanged;
@@ -430,7 +467,6 @@ public partial class ActivityBar : ContentView, IDisposable
             Math.Clamp(progress, 0, 1);
 
         UpdateCustomProgressBar(
-            ActivityProgressBar,
             ActivityProgressFill,
             _activityProgress,
             alwaysGreen: true);
@@ -444,19 +480,17 @@ public partial class ActivityBar : ContentView, IDisposable
             Math.Clamp(progress, 0, 1);
 
         UpdateCustomProgressBar(
-            CombatXPBar,
             CombatXPFill,
             _combatXPProgress);
     }
 
 
     private static void UpdateCustomProgressBar(
-        Grid progressBar,
         BoxView progressFill,
         double progress,
         bool alwaysGreen = false)
     {
-        progressFill.BackgroundColor =
+        Color fillColor =
             alwaysGreen
                 ? Colors.Green
                 : progress <= 0.30
@@ -465,8 +499,11 @@ public partial class ActivityBar : ContentView, IDisposable
                         ? Colors.Yellow
                         : Colors.Green;
 
-        progressFill.WidthRequest =
-            progressBar.Width * progress;
+        if (!Equals(progressFill.BackgroundColor, fillColor))
+            progressFill.BackgroundColor = fillColor;
+
+        if (Math.Abs(progressFill.ScaleX - progress) > 0.001)
+            progressFill.ScaleX = progress;
     }
 
     private void UpdateCombatMiniHPBars()
@@ -490,26 +527,29 @@ public partial class ActivityBar : ContentView, IDisposable
             (double)enemy.CurrentHP /
             Math.Max(1, enemy.HP);
 
-        PlayerMiniHPLabel.Text = "Your HP";
+        if (PlayerMiniHPLabel.Text != "Your HP")
+            PlayerMiniHPLabel.Text = "Your HP";
 
-        EnemyMiniNameLabel.Text =
-            $"{enemy.Name} lvl {enemy.CombatLevel}";
+        string enemyName = $"{enemy.Name} lvl {enemy.CombatLevel}";
+        if (EnemyMiniNameLabel.Text != enemyName)
+            EnemyMiniNameLabel.Text = enemyName;
 
-        PlayerMiniHPValueLabel.Text =
-            $"{_combatManager.Player.CurrentHP}/{playerMaxHP}";
+        string playerHP = $"{_combatManager.Player.CurrentHP}/{playerMaxHP}";
+        if (PlayerMiniHPValueLabel.Text != playerHP)
+            PlayerMiniHPValueLabel.Text = playerHP;
 
-        EnemyMiniHPLabel.Text = "Enemy HP";
+        if (EnemyMiniHPLabel.Text != "Enemy HP")
+            EnemyMiniHPLabel.Text = "Enemy HP";
 
-        EnemyMiniHPValueLabel.Text =
-            $"{enemy.CurrentHP}/{enemy.HP}";
+        string enemyHP = $"{enemy.CurrentHP}/{enemy.HP}";
+        if (EnemyMiniHPValueLabel.Text != enemyHP)
+            EnemyMiniHPValueLabel.Text = enemyHP;
 
         UpdateCustomProgressBar(
-            PlayerMiniHPBar,
             PlayerMiniHPFill,
             playerProgress);
 
         UpdateCustomProgressBar(
-            EnemyMiniHPBar,
             EnemyMiniHPFill,
             enemyProgress);
     }

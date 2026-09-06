@@ -437,7 +437,7 @@ public partial class SkillPage : ContentView
             return;
 
         _trainingProgressTimer = Dispatcher.CreateTimer();
-        _trainingProgressTimer.Interval = TimeSpan.FromMilliseconds(100);
+        _trainingProgressTimer.Interval = TimeSpan.FromMilliseconds(200);
         _trainingProgressTimer.Tick += OnTrainingProgressTick;
         _trainingProgressTimer.Start();
     }

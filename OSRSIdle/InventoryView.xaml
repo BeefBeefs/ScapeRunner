@@ -166,6 +166,15 @@
                 Clicked="OnSortDirectionClicked" />
 
             <local:GoldSliceButton
+                x:Name="CombineAllEquipmentButton"
+                Text="Combine All"
+                FontSize="13"
+                Variant="Green"
+                TextColor="White"
+                Clicked="OnCombineAllEquipmentClicked"
+                IsVisible="False" />
+
+            <local:GoldSliceButton
                 x:Name="SellJunkButton"
                 Text="Sell Junk"
                 FontSize="13"

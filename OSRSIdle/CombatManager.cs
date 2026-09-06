@@ -374,11 +374,12 @@ public class CombatManager : IDisposable
 
         // The combat engine operates on 600 ms game ticks.
         //
-        // The UI receives updates every 100 ms so the attack bars
-        // can animate smoothly between actual game ticks.
+        // Combat simulation remains time-based at a fine interval, while UI
+        // snapshots are published less often to reduce main-thread work.
 
         const int NormalVisualUpdateMilliseconds = 100;
-        const int DebugVisualUpdateMilliseconds = 15;
+        const int DebugVisualUpdateMilliseconds = 33;
+        const int CombatUiUpdateMilliseconds = 200;
 
 
         // ========================================================
@@ -388,6 +389,8 @@ public class CombatManager : IDisposable
         double playerElapsedMilliseconds = 0;
 
         double enemyElapsedMilliseconds = 0;
+
+        double combatUiElapsedMilliseconds = 0;
 
 
         // ========================================================
@@ -408,7 +411,7 @@ public class CombatManager : IDisposable
             {
                 await Task.Delay(
                     visualUpdateMilliseconds,
-                    cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
             }
             catch (TaskCanceledException)
             {
@@ -434,6 +437,8 @@ public class CombatManager : IDisposable
 
             double simulatedElapsedMilliseconds =
                 visualUpdateMilliseconds * speedMultiplier;
+
+            combatUiElapsedMilliseconds += visualUpdateMilliseconds;
 
             playerElapsedMilliseconds +=
                 simulatedElapsedMilliseconds;
@@ -562,7 +567,11 @@ public class CombatManager : IDisposable
             // Update UI.
             // ----------------------------------------------------
 
-            CombatUpdated?.Invoke();
+            if (combatUiElapsedMilliseconds >= CombatUiUpdateMilliseconds)
+            {
+                combatUiElapsedMilliseconds %= CombatUiUpdateMilliseconds;
+                CombatUpdated?.Invoke();
+            }
         }
     }
 

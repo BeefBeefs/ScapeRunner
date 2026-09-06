@@ -1,5 +1,13 @@
 ﻿namespace OSRSIdle;
 
+public enum AutoEquipPriority
+{
+    AttackBonus,
+    DefenseBonus,
+    StrengthBonus,
+    OverallBonus
+}
+
 public class Player
 {
     public string Name { get; set; } = "Adventurer";
@@ -123,6 +131,12 @@ public class Player
 
     public event Action? EquipmentChanged;
 
+    private bool _equipmentBonusCacheDirty = true;
+    private int _cachedEquipmentAttackBonus;
+    private int _cachedEquipmentStrengthBonus;
+    private int _cachedEquipmentDefenseBonus;
+    private int _cachedEquipmentHPBonus;
+
 
     // ============================================================
     // COMBAT INFORMATION
@@ -183,22 +197,26 @@ public class Player
 
     public int GetEquipmentAttackBonus()
     {
-        return GetEquippedItems().Sum(item => item.AttackBonus);
+        EnsureEquipmentBonusCache();
+        return _cachedEquipmentAttackBonus;
     }
 
     public int GetEquipmentStrengthBonus()
     {
-        return GetEquippedItems().Sum(item => item.StrengthBonus);
+        EnsureEquipmentBonusCache();
+        return _cachedEquipmentStrengthBonus;
     }
 
     public int GetEquipmentDefenseBonus()
     {
-        return GetEquippedItems().Sum(item => item.DefenseBonus);
+        EnsureEquipmentBonusCache();
+        return _cachedEquipmentDefenseBonus;
     }
 
     public int GetEquipmentHPBonus()
     {
-        return GetEquippedItems().Sum(item => item.HPBonus);
+        EnsureEquipmentBonusCache();
+        return _cachedEquipmentHPBonus;
     }
 
     public int GetMaxHit()
@@ -210,11 +228,11 @@ public class Player
 
     public int GetTotalEquipmentBonus()
     {
-        return GetEquippedItems().Sum(item =>
-            item.AttackBonus +
-            item.StrengthBonus +
-            item.DefenseBonus +
-            item.HPBonus);
+        EnsureEquipmentBonusCache();
+        return _cachedEquipmentAttackBonus +
+            _cachedEquipmentStrengthBonus +
+            _cachedEquipmentDefenseBonus +
+            _cachedEquipmentHPBonus;
     }
 
     public bool EquipItem(
@@ -354,6 +372,11 @@ public class Player
 
     public void AutoEquipBestGear()
     {
+        AutoEquipBestGear(AutoEquipPriority.OverallBonus);
+    }
+
+    public void AutoEquipBestGear(AutoEquipPriority priority)
+    {
         Item[] availableItems =
             Inventory.Items
                 .Select(inventoryItem => inventoryItem.Item)
@@ -372,14 +395,12 @@ public class Player
 
             Item? bestItem =
                 availableItems
-                    .Where(item => item.EquipmentSlot == slot)
-                    .OrderByDescending(item => slot == EquipmentSlot.Weapon
-                        ? GetWeaponAutoEquipScore(item)
-                        : (double)GetCombinedEquipmentBonus(item))
-                    .ThenBy(item =>
-                        slot == EquipmentSlot.Weapon
-                            ? item.AttackSpeedTicks
-                            : int.MaxValue)
+                .Where(item => item.EquipmentSlot == slot)
+                    .OrderByDescending(item =>
+                        GetAutoEquipScore(item, priority))
+                    .ThenByDescending(GetCombinedEquipmentBonus)
+                    .ThenByDescending(item => item.Value)
+                    .ThenBy(item => item.AttackSpeedTicks)
                     .FirstOrDefault();
 
             Item? currentlyEquipped =
@@ -446,6 +467,7 @@ public class Player
         EquippedAmulet = null;
         EquippedRing = null;
         EquippedFood = null;
+        _equipmentBonusCacheDirty = true;
     }
 
     public IEnumerable<Skill> GetAllSkills()
@@ -498,18 +520,17 @@ public class Player
             item.HPBonus;
     }
 
-    private double GetWeaponAutoEquipScore(Item item)
+    private static int GetAutoEquipScore(
+        Item item,
+        AutoEquipPriority priority)
     {
-        int currentWeaponAttack = EquippedWeapon?.AttackBonus ?? 0;
-        int currentWeaponStrength = EquippedWeapon?.StrengthBonus ?? 0;
-        double attackLevel = Math.Max(1,
-            Attack.Level + GetEquipmentAttackBonus() - currentWeaponAttack + item.AttackBonus);
-        double strengthLevel = Math.Max(1,
-            Strength.Level + GetEquipmentStrengthBonus() - currentWeaponStrength + item.StrengthBonus);
-        double hitChance = Math.Clamp(attackLevel / (attackLevel + 50d), 0.05d, 0.95d);
-        double maximumHit = Math.Max(1d, strengthLevel / 3d + 1d);
-        double averageHit = (maximumHit + 1d) / 2d;
-        return hitChance * averageHit / Math.Max(1, item.AttackSpeedTicks);
+        return priority switch
+        {
+            AutoEquipPriority.AttackBonus => item.AttackBonus,
+            AutoEquipPriority.DefenseBonus => item.DefenseBonus,
+            AutoEquipPriority.StrengthBonus => item.StrengthBonus,
+            _ => GetCombinedEquipmentBonus(item)
+        };
     }
 
     private void SetEquippedItem(
@@ -546,6 +567,60 @@ public class Player
                 EquippedRing = item;
                 break;
         }
+
+        _equipmentBonusCacheDirty = true;
+    }
+
+    private void EnsureEquipmentBonusCache()
+    {
+        if (!_equipmentBonusCacheDirty)
+            return;
+
+        _cachedEquipmentAttackBonus =
+            (EquippedHead?.AttackBonus ?? 0) +
+            (EquippedBody?.AttackBonus ?? 0) +
+            (EquippedLegs?.AttackBonus ?? 0) +
+            (EquippedWeapon?.AttackBonus ?? 0) +
+            (EquippedShield?.AttackBonus ?? 0) +
+            (EquippedGloves?.AttackBonus ?? 0) +
+            (EquippedBoots?.AttackBonus ?? 0) +
+            (EquippedAmulet?.AttackBonus ?? 0) +
+            (EquippedRing?.AttackBonus ?? 0);
+
+        _cachedEquipmentStrengthBonus =
+            (EquippedHead?.StrengthBonus ?? 0) +
+            (EquippedBody?.StrengthBonus ?? 0) +
+            (EquippedLegs?.StrengthBonus ?? 0) +
+            (EquippedWeapon?.StrengthBonus ?? 0) +
+            (EquippedShield?.StrengthBonus ?? 0) +
+            (EquippedGloves?.StrengthBonus ?? 0) +
+            (EquippedBoots?.StrengthBonus ?? 0) +
+            (EquippedAmulet?.StrengthBonus ?? 0) +
+            (EquippedRing?.StrengthBonus ?? 0);
+
+        _cachedEquipmentDefenseBonus =
+            (EquippedHead?.DefenseBonus ?? 0) +
+            (EquippedBody?.DefenseBonus ?? 0) +
+            (EquippedLegs?.DefenseBonus ?? 0) +
+            (EquippedWeapon?.DefenseBonus ?? 0) +
+            (EquippedShield?.DefenseBonus ?? 0) +
+            (EquippedGloves?.DefenseBonus ?? 0) +
+            (EquippedBoots?.DefenseBonus ?? 0) +
+            (EquippedAmulet?.DefenseBonus ?? 0) +
+            (EquippedRing?.DefenseBonus ?? 0);
+
+        _cachedEquipmentHPBonus =
+            (EquippedHead?.HPBonus ?? 0) +
+            (EquippedBody?.HPBonus ?? 0) +
+            (EquippedLegs?.HPBonus ?? 0) +
+            (EquippedWeapon?.HPBonus ?? 0) +
+            (EquippedShield?.HPBonus ?? 0) +
+            (EquippedGloves?.HPBonus ?? 0) +
+            (EquippedBoots?.HPBonus ?? 0) +
+            (EquippedAmulet?.HPBonus ?? 0) +
+            (EquippedRing?.HPBonus ?? 0);
+
+        _equipmentBonusCacheDirty = false;
     }
 
 

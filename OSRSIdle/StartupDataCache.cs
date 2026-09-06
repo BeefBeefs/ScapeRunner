@@ -27,6 +27,8 @@ public static class StartupDataCache
         new Dictionary<Enemy, IReadOnlyList<Item>>();
     public static IReadOnlyDictionary<Item, IReadOnlyList<Enemy>> EnemiesByDropItem { get; private set; } =
         new Dictionary<Item, IReadOnlyList<Enemy>>();
+    public static IReadOnlyDictionary<Item, DropRarity> MaxDropRarityByItem { get; private set; } =
+        new Dictionary<Item, DropRarity>();
     public static IReadOnlyDictionary<string, IReadOnlyList<SkillActivity>> SkillActivitiesByName { get; private set; } =
         new Dictionary<string, IReadOnlyList<SkillActivity>>();
     public static int TotalCollectionSlots { get; private set; }
@@ -168,6 +170,12 @@ public static class StartupDataCache
                         .Select(pair => pair.enemy)
                         .Distinct()
                         .ToArray())));
+            MaxDropRarityByItem = new ReadOnlyDictionary<Item, DropRarity>(Enemies
+                .SelectMany(enemy => enemy.DropTable.Drops)
+                .GroupBy(drop => drop.Item)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Max(drop => drop.Rarity)));
             TotalCollectionSlots = CollectionItemsByEnemy.Values.Sum(items => items.Count) +
                 SkillingPetData.AllPets.Count;
 

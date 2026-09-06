@@ -174,6 +174,74 @@ public class Inventory
         if (item.Type != ItemType.Equipment || item.UpgradeLevel >= 10)
             return false;
 
+        if (!TryCombineEquipmentInternal(item, out upgradedItem))
+        {
+            upgradedItem = item;
+            return false;
+        }
+
+        InventoryChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Combines every possible equipment pair in the inventory, including
+    /// upgrades created by earlier combinations.
+    /// </summary>
+    public bool TryCombineAllEquipment(out int combinedPairs)
+    {
+        combinedPairs = 0;
+
+        while (true)
+        {
+            bool combinedAny = false;
+            Item[] equipmentItems = Items
+                .Where(entry =>
+                    entry.Quantity >= 2 &&
+                    entry.Item.Type == ItemType.Equipment &&
+                    entry.Item.UpgradeLevel < 10)
+                .Select(entry => entry.Item)
+                .ToArray();
+
+            foreach (Item item in equipmentItems)
+            {
+                while (true)
+                {
+                    int quantity = GetQuantity(item);
+                    if (quantity >= 4 &&
+                        TryCombineAllEquipmentInternal(
+                            item,
+                            out _,
+                            out int allPairs))
+                    {
+                        combinedPairs += allPairs;
+                        combinedAny = true;
+                        continue;
+                    }
+
+                    if (!TryCombineEquipmentInternal(item, out _))
+                        break;
+
+                    combinedPairs++;
+                    combinedAny = true;
+                }
+            }
+
+            if (!combinedAny)
+                break;
+        }
+
+        if (combinedPairs > 0)
+            InventoryChanged?.Invoke();
+
+        return combinedPairs > 0;
+    }
+
+    private bool TryCombineEquipmentInternal(
+        Item item,
+        out Item upgradedItem)
+    {
+        upgradedItem = item;
         InventoryItem? sourceStack = Items.FirstOrDefault(entry =>
             AreSameStack(item, entry.Item));
 
@@ -196,7 +264,6 @@ public class Inventory
         }
 
         ApplyCombination(sourceStack, finalStacks);
-        InventoryChanged?.Invoke();
         return true;
     }
 
@@ -213,6 +280,27 @@ public class Inventory
 
         if (item.Type != ItemType.Equipment || item.UpgradeLevel >= 10)
             return false;
+
+        if (!TryCombineAllEquipmentInternal(
+                item,
+                out result,
+                out _))
+        {
+            result = EquipmentCombineAllResult.None;
+            return false;
+        }
+
+        InventoryChanged?.Invoke();
+        return true;
+    }
+
+    private bool TryCombineAllEquipmentInternal(
+        Item item,
+        out EquipmentCombineAllResult result,
+        out int combinedPairs)
+    {
+        result = EquipmentCombineAllResult.None;
+        combinedPairs = 0;
 
         InventoryItem? sourceStack = Items.FirstOrDefault(entry =>
             AreSameStack(item, entry.Item));
@@ -264,7 +352,8 @@ public class Inventory
         result = new EquipmentCombineAllResult(
             baseCopiesConsumed,
             createdStacks);
-        InventoryChanged?.Invoke();
+        combinedPairs = sourceQuantity -
+            finalStacks.Sum(stack => stack.Quantity);
         return true;
     }
 

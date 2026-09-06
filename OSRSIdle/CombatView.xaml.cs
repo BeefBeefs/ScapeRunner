@@ -13,8 +13,6 @@ public partial class CombatView : ContentView
     private int _areaNavigationGeneration;
     private bool _enemyListBuilt;
 
-    private CancellationTokenSource? _playerDamageAnimationCancellation;
-    private CancellationTokenSource? _enemyDamageAnimationCancellation;
     private bool _resumeDamageBarsOnRefresh;
     private double _playerAttackProgress;
     private double _enemyAttackProgress;
@@ -22,6 +20,14 @@ public partial class CombatView : ContentView
     private bool _autoFightEnabled;
     private CancellationTokenSource? _autoFightCancellation;
     private int _autoFightGeneration;
+    private int _combatUiUpdatePending;
+    private bool _disposed;
+    private bool _isActive;
+    private bool _playerDamageBarInitialized;
+    private bool _enemyDamageBarInitialized;
+
+    private readonly Border _playerHitSplat;
+    private readonly Border _enemyHitSplat;
 
     private const int AutoFightDelayTicks = 12;
     private sealed class EnemyCardState
@@ -127,6 +133,12 @@ public partial class CombatView : ContentView
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _isActive = false;
+
         _combatManager.CombatStarted -= OnCombatStarted;
         _combatManager.CombatUpdated -= OnCombatUpdated;
         _combatManager.CombatStopped -= OnCombatStopped;
@@ -136,14 +148,16 @@ public partial class CombatView : ContentView
         _combatManager.PlayerDefeated -= OnPlayerDefeated;
         _player.CollectionLog.DropDiscovered -= OnDropDiscovered;
 
-        _playerDamageAnimationCancellation?.Cancel();
-        _enemyDamageAnimationCancellation?.Cancel();
-
-        _playerDamageAnimationCancellation?.Dispose();
-        _enemyDamageAnimationCancellation?.Dispose();
+        PlayerDamageFill.AbortAnimation("damageTrail");
+        EnemyDamageFill.AbortAnimation("damageTrail");
 
         _autoFightCancellation?.Cancel();
         _autoFightCancellation?.Dispose();
+    }
+
+    public void SetActive(bool active)
+    {
+        _isActive = active;
     }
 
     public CombatView(
@@ -154,6 +168,11 @@ public partial class CombatView : ContentView
 
         _player = player;
         _combatManager = combatManager;
+
+        _playerHitSplat = CreateHitSplat();
+        _enemyHitSplat = CreateHitSplat();
+        DamagePopupLayer.Children.Add(_playerHitSplat);
+        EnemyHitSplatLayer.Children.Add(_enemyHitSplat);
 
         PlayerHPBar.SizeChanged += (sender, e) =>
         {
@@ -184,17 +203,10 @@ public partial class CombatView : ContentView
         _combatManager.PlayerDefeated += OnPlayerDefeated;
         _player.CollectionLog.DropDiscovered += OnDropDiscovered;
 
-        // Building every enemy card and drop row is relatively expensive.
-        // Defer it one UI turn so returning from offline progress can render
-        // the combat page immediately, especially on Android devices.
-        Dispatcher.Dispatch(() =>
-        {
-            if (_enemyListBuilt)
-                return;
-
-            BuildEnemyList();
-            _enemyListBuilt = true;
-        });
+        // Keep construction on the UI dispatcher. Startup explicitly calls
+        // PreloadEnemyList while the loading screen is visible, so this is a
+        // no-op when the view is later attached to the game page.
+        Dispatcher.Dispatch(PreloadEnemyList);
 
         if (_combatManager.IsInCombat)
         {
@@ -269,6 +281,15 @@ public partial class CombatView : ContentView
         }
 
         UpdateEnemyNameAppearance();
+    }
+
+    public void PreloadEnemyList()
+    {
+        if (_enemyListBuilt)
+            return;
+
+        BuildEnemyList();
+        _enemyListBuilt = true;
     }
 
     private void BuildEnemyList()
@@ -548,14 +569,9 @@ public partial class CombatView : ContentView
     /// </summary>
     public void RefreshCombatDisplay()
     {
-        _playerDamageAnimationCancellation?.Cancel();
-        _enemyDamageAnimationCancellation?.Cancel();
+        PlayerDamageFill.AbortAnimation("damageTrail");
+        EnemyDamageFill.AbortAnimation("damageTrail");
 
-        _playerDamageAnimationCancellation?.Dispose();
-        _enemyDamageAnimationCancellation?.Dispose();
-
-        _playerDamageAnimationCancellation = null;
-        _enemyDamageAnimationCancellation = null;
 
         // Resume the visual catch-up from its current width once layout is
         // available. SizeChanged will call UpdateHPBars again if either bar
@@ -1071,6 +1087,9 @@ public partial class CombatView : ContentView
 
     private void OnDropDiscovered(Item item)
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             RefreshEnemyCardsForItem(item);
@@ -1149,24 +1168,11 @@ public partial class CombatView : ContentView
 
     private void ResetDamageBars()
     {
-        _playerDamageAnimationCancellation?.Cancel();
-        _enemyDamageAnimationCancellation?.Cancel();
+        PlayerDamageFill.AbortAnimation("damageTrail");
+        EnemyDamageFill.AbortAnimation("damageTrail");
 
-        _playerDamageAnimationCancellation?.Dispose();
-        _enemyDamageAnimationCancellation?.Dispose();
-
-        _playerDamageAnimationCancellation = null;
-        _enemyDamageAnimationCancellation = null;
-
-        PlayerDamageFill.WidthRequest =
-            PlayerHPBar.Width > 0
-                ? PlayerHPBar.Width
-                : 0;
-
-        EnemyDamageFill.WidthRequest =
-            EnemyHPBar.Width > 0
-                ? EnemyHPBar.Width
-                : 0;
+        PlayerDamageFill.ScaleX = 1;
+        EnemyDamageFill.ScaleX = 1;
     }
 
     private void SelectEnemy(Enemy enemy)
@@ -1200,6 +1206,9 @@ public partial class CombatView : ContentView
 
     private void OnCombatStarted()
     {
+        if (!_isActive)
+            return;
+
         Enemy? startedEnemy = _combatManager.CurrentEnemy;
         if (startedEnemy == null)
             return;
@@ -1243,8 +1252,20 @@ public partial class CombatView : ContentView
 
     private void OnCombatUpdated()
     {
+        if (_disposed ||
+            !_isActive ||
+            Interlocked.Exchange(ref _combatUiUpdatePending, 1) != 0)
+        {
+            return;
+        }
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            Interlocked.Exchange(ref _combatUiUpdatePending, 0);
+
+            if (_disposed || !_isActive)
+                return;
+
             UpdateHPBars();
             UpdateAttackBars();
         });
@@ -1269,19 +1290,25 @@ public partial class CombatView : ContentView
 
     private void UpdateHPBars()
     {
-        PlayerNameLabel.Text =
+        string playerName =
             $"{_combatManager.Player.Name} lvl {_combatManager.Player.GetCombatLevel()}";
+        if (PlayerNameLabel.Text != playerName)
+            PlayerNameLabel.Text = playerName;
 
         bool isWaitingForAutoFightRespawn =
             _combatManager.IsAutoFightRespawning;
 
-        EnemyHPBar.Opacity = isWaitingForAutoFightRespawn
+        double enemyBarOpacity = isWaitingForAutoFightRespawn
             ? 0.45
             : 1;
+        if (Math.Abs(EnemyHPBar.Opacity - enemyBarOpacity) > 0.001)
+            EnemyHPBar.Opacity = enemyBarOpacity;
 
-        EnemyHPLabel.TextColor = isWaitingForAutoFightRespawn
+        Color enemyHPTextColor = isWaitingForAutoFightRespawn
             ? Colors.Gray
             : Colors.White;
+        if (!Equals(EnemyHPLabel.TextColor, enemyHPTextColor))
+            EnemyHPLabel.TextColor = enemyHPTextColor;
 
         // ============================================================
         // PLAYER HP
@@ -1308,10 +1335,10 @@ public partial class CombatView : ContentView
             playerMaxHP;
 
         UpdateHPBar(
-            PlayerHPBar,
             PlayerHPFill,
             PlayerDamageFill,
-            playerPercentage);
+            playerPercentage,
+            ref _playerDamageBarInitialized);
 
 
         // ------------------------------------------------------------
@@ -1321,8 +1348,9 @@ public partial class CombatView : ContentView
         // This uses CurrentHP, NOT the player's maximum HP.
         // ------------------------------------------------------------
 
-        PlayerHPLabel.Text =
-            $"{playerCurrentHP} / {playerMaxHP}";
+        string playerHPText = $"{playerCurrentHP} / {playerMaxHP}";
+        if (PlayerHPLabel.Text != playerHPText)
+            PlayerHPLabel.Text = playerHPText;
 
 
         // ============================================================
@@ -1336,14 +1364,14 @@ public partial class CombatView : ContentView
 
         if (enemy == null)
         {
-            EnemyHPLabel.Text =
-                "0 / 0";
+            if (EnemyHPLabel.Text != "0 / 0")
+                EnemyHPLabel.Text = "0 / 0";
 
-            EnemyHPFill.WidthRequest =
-                0;
+            if (EnemyHPFill.ScaleX != 0)
+                EnemyHPFill.ScaleX = 0;
 
-            EnemyDamageFill.WidthRequest =
-                0;
+            if (EnemyDamageFill.ScaleX != 0)
+                EnemyDamageFill.ScaleX = 0;
 
             ResumeDamageBarsIfNeeded(includeEnemy: false);
 
@@ -1372,18 +1400,19 @@ public partial class CombatView : ContentView
             enemyMaxHP;
 
         UpdateHPBar(
-            EnemyHPBar,
             EnemyHPFill,
             EnemyDamageFill,
-            enemyPercentage);
+            enemyPercentage,
+            ref _enemyDamageBarInitialized);
 
 
         // ------------------------------------------------------------
         // Update enemy HP TEXT.
         // ------------------------------------------------------------
 
-        EnemyHPLabel.Text =
-            $"{enemyCurrentHP} / {enemyMaxHP}";
+        string enemyHPText = $"{enemyCurrentHP} / {enemyMaxHP}";
+        if (EnemyHPLabel.Text != enemyHPText)
+            EnemyHPLabel.Text = enemyHPText;
 
         ResumeDamageBarsIfNeeded(includeEnemy: true);
     }
@@ -1398,17 +1427,17 @@ public partial class CombatView : ContentView
 
         _resumeDamageBarsOnRefresh = false;
 
-        _ = AnimatePlayerDamage();
+        AnimatePlayerDamage();
 
         if (includeEnemy)
-            _ = AnimateEnemyDamage();
+            AnimateEnemyDamage();
     }
 
     private void UpdateHPBar(
-        Grid hpBar,
         BoxView hpFill,
         BoxView damageFill,
-        double percentage)
+        double percentage,
+        ref bool damageBarInitialized)
     {
         percentage =
             Math.Clamp(
@@ -1416,24 +1445,27 @@ public partial class CombatView : ContentView
                 0,
                 1);
 
-        hpFill.BackgroundColor = percentage <= 0.30
+        Color fillColor = percentage <= 0.30
             ? Colors.Red
             : percentage <= 0.70
                 ? Colors.Yellow
                 : Colors.Green;
 
-        hpFill.HorizontalOptions = LayoutOptions.Start;
+        if (!Equals(hpFill.BackgroundColor, fillColor))
+            hpFill.BackgroundColor = fillColor;
 
-        hpFill.WidthRequest =
-            hpBar.Width * percentage;
+        if (Math.Abs(hpFill.ScaleX - percentage) > 0.001)
+            hpFill.ScaleX = percentage;
 
-        if (damageFill.WidthRequest <= 0)
+        if (!damageBarInitialized)
         {
-            damageFill.WidthRequest =
-                hpBar.Width * percentage;
+            damageFill.ScaleX = percentage;
 
-            damageFill.BackgroundColor =
-                GetDamageColor(percentage);
+            Color damageColor = GetDamageColor(percentage);
+            if (!Equals(damageFill.BackgroundColor, damageColor))
+                damageFill.BackgroundColor = damageColor;
+
+            damageBarInitialized = true;
         }
     }
 
@@ -1448,17 +1480,8 @@ public partial class CombatView : ContentView
         return Color.FromArgb("#006400");
     }
 
-    private async Task AnimatePlayerDamage()
+    private void AnimatePlayerDamage()
     {
-        _playerDamageAnimationCancellation?.Cancel();
-        _playerDamageAnimationCancellation?.Dispose();
-
-        _playerDamageAnimationCancellation =
-            new CancellationTokenSource();
-
-        CancellationToken token =
-            _playerDamageAnimationCancellation.Token;
-
         int maxHP = _player.GetMaxHP();
         int currentHP = _player.CurrentHP;
 
@@ -1471,50 +1494,25 @@ public partial class CombatView : ContentView
                 0,
                 1);
 
-        double oldPercentage =
-            PlayerDamageFill.WidthRequest /
-            PlayerHPBar.Width;
-
-        oldPercentage =
-            Math.Clamp(
-                oldPercentage,
-                0,
-                1);
+        double oldPercentage = Math.Clamp(PlayerDamageFill.ScaleX, 0, 1);
 
         if (newPercentage >= oldPercentage)
         {
-            PlayerDamageFill.WidthRequest =
-                PlayerHPBar.Width * newPercentage;
+            PlayerDamageFill.ScaleX = newPercentage;
 
             return;
         }
 
-        try
-        {
-            await AnimateRecentDamage(
-                PlayerHPBar,
-                PlayerHPFill,
-                PlayerDamageFill,
-                oldPercentage,
-                newPercentage,
-                token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        AnimateDamageBar(
+            PlayerHPBar,
+            PlayerHPFill,
+            PlayerDamageFill,
+            oldPercentage,
+            newPercentage);
     }
 
-    private async Task AnimateEnemyDamage()
+    private void AnimateEnemyDamage()
     {
-        _enemyDamageAnimationCancellation?.Cancel();
-        _enemyDamageAnimationCancellation?.Dispose();
-
-        _enemyDamageAnimationCancellation =
-            new CancellationTokenSource();
-
-        CancellationToken token =
-            _enemyDamageAnimationCancellation.Token;
-
         Enemy? enemy =
             _combatManager.CurrentEnemy ??
             _combatManager.LastDefeatedEnemy;
@@ -1534,46 +1532,29 @@ public partial class CombatView : ContentView
                 0,
                 1);
 
-        double oldPercentage =
-            EnemyDamageFill.WidthRequest /
-            EnemyHPBar.Width;
-
-        oldPercentage =
-            Math.Clamp(
-                oldPercentage,
-                0,
-                1);
+        double oldPercentage = Math.Clamp(EnemyDamageFill.ScaleX, 0, 1);
 
         if (newPercentage >= oldPercentage)
         {
-            EnemyDamageFill.WidthRequest =
-                EnemyHPBar.Width * newPercentage;
+            EnemyDamageFill.ScaleX = newPercentage;
 
             return;
         }
 
-        try
-        {
-            await AnimateRecentDamage(
-                EnemyHPBar,
-                EnemyHPFill,
-                EnemyDamageFill,
-                oldPercentage,
-                newPercentage,
-                token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        AnimateDamageBar(
+            EnemyHPBar,
+            EnemyHPFill,
+            EnemyDamageFill,
+            oldPercentage,
+            newPercentage);
     }
 
-    private async Task AnimateRecentDamage(
+    private void AnimateDamageBar(
         Grid hpBar,
         BoxView hpFill,
         BoxView damageFill,
         double oldPercentage,
-        double newPercentage,
-        CancellationToken cancellationToken)
+        double newPercentage)
     {
         oldPercentage =
             Math.Clamp(oldPercentage, 0, 1);
@@ -1584,64 +1565,33 @@ public partial class CombatView : ContentView
         if (hpBar.Width <= 0)
             return;
 
-        damageFill.BackgroundColor =
-            GetDamageColor(oldPercentage);
+        Color damageColor = GetDamageColor(oldPercentage);
+        if (!Equals(damageFill.BackgroundColor, damageColor))
+            damageFill.BackgroundColor = damageColor;
 
-        hpFill.HorizontalOptions =
-            LayoutOptions.Start;
+        hpFill.ScaleX = newPercentage;
 
-        hpFill.WidthRequest =
-            hpBar.Width * newPercentage;
-
-        hpFill.BackgroundColor = newPercentage <= 0.30
+        Color fillColor = newPercentage <= 0.30
             ? Colors.Red
             : newPercentage <= 0.70
                 ? Colors.Yellow
                 : Colors.Green;
 
-        double startingWidth =
-            hpBar.Width * oldPercentage;
+        if (!Equals(hpFill.BackgroundColor, fillColor))
+            hpFill.BackgroundColor = fillColor;
 
-        double targetWidth =
-            hpBar.Width * newPercentage;
+        damageFill.ScaleX = oldPercentage;
 
-        damageFill.HorizontalOptions =
-            LayoutOptions.Start;
-
-        damageFill.WidthRequest =
-            startingWidth;
-
-        const int animationDuration = 500;
-        const int frameTime = 16;
-
-        int elapsed = 0;
-
-        while (elapsed < animationDuration)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await Task.Delay(
-                frameTime,
-                cancellationToken);
-
-            elapsed += frameTime;
-
-            double progress =
-                Math.Clamp(
-                    (double)elapsed / animationDuration,
-                    0,
-                    1);
-
-            double width =
-                startingWidth +
-                ((targetWidth - startingWidth) * progress);
-
-            damageFill.WidthRequest = width;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        damageFill.WidthRequest = targetWidth;
+        new Animation(
+            value => damageFill.ScaleX = value,
+            oldPercentage,
+            newPercentage)
+            .Commit(
+                damageFill,
+                "damageTrail",
+                16,
+                240,
+                Easing.CubicOut);
     }
 
     private void UpdateAttackBars()
@@ -1658,9 +1608,11 @@ public partial class CombatView : ContentView
         int playerAttackSpeed =
             _combatManager.PlayerAttackSpeedTicks;
 
-        PlayerAttackLabel.Text =
+        string playerAttackText =
             $"Player Attack — {playerAttackSpeed} ticks " +
             $"({playerAttackSpeed * 0.6:0.0}s)";
+        if (PlayerAttackLabel.Text != playerAttackText)
+            PlayerAttackLabel.Text = playerAttackText;
     }
 
     private void SetAttackProgress(
@@ -1671,27 +1623,56 @@ public partial class CombatView : ContentView
         _enemyAttackProgress = Math.Clamp(enemyProgress, 0, 1);
 
         UpdateAttackProgressBar(
-            PlayerAttackBar,
             PlayerAttackFill,
             _playerAttackProgress);
 
         UpdateAttackProgressBar(
-            EnemyAttackBar,
             EnemyAttackFill,
             _enemyAttackProgress);
     }
 
     private static void UpdateAttackProgressBar(
-        Grid progressBar,
         BoxView progressFill,
         double progress)
     {
-        progressFill.WidthRequest = progressBar.Width * progress;
+        if (Math.Abs(progressFill.ScaleX - progress) > 0.001)
+            progressFill.ScaleX = progress;
+    }
+
+    private static Border CreateHitSplat()
+    {
+        return new Border
+        {
+            WidthRequest = 64,
+            HeightRequest = 64,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            BackgroundColor = Color.FromArgb("#B82626"),
+            Stroke = Color.FromArgb("#F07058"),
+            StrokeThickness = 2,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle
+            {
+                CornerRadius = 32
+            },
+            Opacity = 0,
+            InputTransparent = true,
+            Content = new Label
+            {
+                FontSize = 18,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Colors.White,
+                HorizontalTextAlignment = TextAlignment.Center,
+                VerticalTextAlignment = TextAlignment.Center
+            }
+        };
     }
 
     private void OnAttackPerformed(CombatHitEventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(async () =>
+        if (!_isActive)
+            return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
         {
             ShowDamagePopup(e);
 
@@ -1705,102 +1686,68 @@ public partial class CombatView : ContentView
             if (!e.Hit || e.Damage <= 0)
                 return;
 
-            try
-            {
-                if (e.AttackerIsPlayer)
-                {
-                    await AnimateEnemyDamage();
-                }
-                else
-                {
-                    await AnimatePlayerDamage();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
+            if (e.AttackerIsPlayer)
+                AnimateEnemyDamage();
+            else
+                AnimatePlayerDamage();
         });
     }
 
-    private async void ShowDamagePopup(CombatHitEventArgs e)
+    private void ShowDamagePopup(CombatHitEventArgs e)
     {
         double horizontalOffset =
             Random.Shared.NextDouble() * 12 - 6;
 
         bool playerAttacked = e.AttackerIsPlayer;
+        Border hitSplat = playerAttacked
+            ? _enemyHitSplat
+            : _playerHitSplat;
 
-        Layout targetLayer = playerAttacked
-            ? EnemyHitSplatLayer
-            : DamagePopupLayer;
-
-        Grid hitSplat =
-            new Grid
-            {
-                WidthRequest = 64,
-                HeightRequest = 64,
-
-                HorizontalOptions =
-                    LayoutOptions.Center,
-
-                VerticalOptions =
-                    LayoutOptions.Center,
-
-                TranslationX =
-                    horizontalOffset
-            };
-
-        if (!playerAttacked)
+        if (hitSplat.Content is Label label)
         {
-            // Damage from the enemy belongs at the bottom of the combat
-            // area, directly above the persistent activity display.
-            hitSplat.VerticalOptions = LayoutOptions.End;
-            hitSplat.TranslationY = -8;
+            label.Text = e.Hit && e.Damage > 0
+                ? $"-{e.Damage}"
+                : "MISS";
         }
 
-        GraphicsView hitsplatGraphic =
-            new GraphicsView
-            {
-                WidthRequest = 64,
-                HeightRequest = 64,
-                HorizontalOptions =
-                    LayoutOptions.Center,
-                VerticalOptions =
-                    LayoutOptions.Center,
-                Drawable = new HitSplatDrawable(
-                    e.Hit,
-                    e.Hit ? $"-{e.Damage}" : "MISS")
-            };
+        bool hit = e.Hit && e.Damage > 0;
+        hitSplat.BackgroundColor = hit
+            ? Color.FromArgb("#B82626")
+            : Color.FromArgb("#2D71A8");
+        hitSplat.Stroke = hit
+            ? Color.FromArgb("#F07058")
+            : Color.FromArgb("#74C5EE");
+        hitSplat.VerticalOptions = playerAttacked
+            ? LayoutOptions.Center
+            : LayoutOptions.End;
 
-        hitSplat.Children.Add(hitsplatGraphic);
-        targetLayer.Children.Add(hitSplat);
+        hitSplat.AbortAnimation("hitSplatMove");
+        hitSplat.AbortAnimation("hitSplatFade");
+        hitSplat.TranslationX = horizontalOffset;
+        hitSplat.TranslationY = playerAttacked ? 0 : -8;
+        hitSplat.Opacity = 1;
 
+        new Animation(
+            value => hitSplat.TranslationY = value,
+            hitSplat.TranslationY,
+            hitSplat.TranslationY - 4)
+            .Commit(
+                hitSplat,
+                "hitSplatMove",
+                16,
+                450,
+                Easing.CubicOut);
 
-        try
-        {
-            // --------------------------------------------------------
-            // Hold position almost completely; a subtle lift keeps the
-            // effect alive without obscuring which side produced it.
-            // --------------------------------------------------------
-
-            await Task.WhenAll(
-
-                hitSplat.TranslateToAsync(
-                    horizontalOffset,
-                    hitSplat.TranslationY - 4,
-                    2000,
-                    Easing.Linear),
-
-                hitSplat.FadeToAsync(
-                    0,
-                    2000));
-        }
-        catch
-        {
-            // Animation was interrupted.
-        }
-
-
-        targetLayer.Children.Remove(hitSplat);
+        new Animation(
+            value => hitSplat.Opacity = value,
+            1,
+            0)
+            .Commit(
+                hitSplat,
+                "hitSplatFade",
+                16,
+                450,
+                Easing.CubicIn);
     }
 
 
@@ -1859,6 +1806,9 @@ public partial class CombatView : ContentView
 
     private void OnAutoEatPerformed(AutoEatEventArgs e)
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             _ = PlayAutoEatFeedbackAsync(e);
@@ -1918,9 +1868,9 @@ public partial class CombatView : ContentView
                     1);
 
                 PlayerHealFill.Opacity = 0.9;
-                PlayerHealFill.WidthRequest = PlayerHPBar.Width * previous;
+                PlayerHealFill.ScaleX = previous;
                 var healingAnimation = new Animation(
-                    value => PlayerHealFill.WidthRequest = PlayerHPBar.Width * value,
+                    value => PlayerHealFill.ScaleX = value,
                     previous,
                     current);
                 healingAnimation.Commit(
@@ -2056,7 +2006,7 @@ public partial class CombatView : ContentView
         DropRarity rarity,
         double size)
     {
-        if (rarity == DropRarity.Common)
+        if (rarity < DropRarity.Rare)
             return;
 
         Color color = GameThemeCache.GetRarityColor(rarity);
@@ -2074,30 +2024,11 @@ public partial class CombatView : ContentView
         };
         host.Children.Add(glow);
 
-        Label sparkle = new()
-        {
-            Text = "✦",
-            FontSize = Math.Max(7, size * 0.42),
-            TextColor = color,
-            Opacity = 0.25,
-            InputTransparent = true,
-            HorizontalOptions = LayoutOptions.End,
-            VerticalOptions = LayoutOptions.Start,
-            TranslationX = 2,
-            TranslationY = -2
-        };
-        host.Children.Add(sparkle);
-
         new Animation
         {
             { 0, 0.5, new Animation(value => glow.Opacity = value, 0.2, 0.75) },
             { 0.5, 1, new Animation(value => glow.Opacity = value, 0.75, 0.2) }
         }.Commit(glow, "dropGlow", 16, 1100, Easing.SinInOut, repeat: () => true);
-        new Animation
-        {
-            { 0, 0.5, new Animation(value => sparkle.Opacity = value, 0.1, 1) },
-            { 0.5, 1, new Animation(value => sparkle.Opacity = value, 1, 0.1) }
-        }.Commit(sparkle, "dropSparkle", 16, 900, Easing.SinInOut, repeat: () => true);
     }
 
     private static string FormatDropRarity(DropRarity rarity)
@@ -2216,6 +2147,9 @@ public partial class CombatView : ContentView
 
     private void OnCombatStopped()
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             ResetDamageBars();
@@ -2435,142 +2369,5 @@ public partial class CombatView : ContentView
         LootContainer.Children.Clear();
 
         CombatStatusLabel.Text = "";
-    }
-    // ================================================================
-    // OSRS-STYLE HIT SPLAT DRAWABLE
-    // ================================================================
-
-    private sealed class HitSplatDrawable : IDrawable
-    {
-        private readonly Color _color;
-        private readonly Color _highlight;
-        private readonly string _damageText;
-
-        public HitSplatDrawable(bool hit, string damageText)
-        {
-            _color = hit
-                ? Color.FromArgb("#B82626")
-                : Color.FromArgb("#2D71A8");
-            _highlight = hit
-                ? Color.FromArgb("#F07058")
-                : Color.FromArgb("#74C5EE");
-            _damageText = damageText;
-        }
-
-        public void Draw(
-            ICanvas canvas,
-            RectF dirtyRect)
-        {
-            canvas.Antialias = false;
-
-            PathF splat = CreateNinjaStarShape(dirtyRect);
-
-            canvas.FillColor = Colors.Black;
-            canvas.StrokeColor = Colors.Black;
-            canvas.StrokeSize = 4;
-            canvas.DrawPath(splat);
-            canvas.FillPath(splat);
-
-            canvas.FillColor = _color;
-            canvas.FillPath(splat);
-
-            // Four darker triangular blades give the splat its clear
-            // shuriken silhouette instead of a rounded blob.
-            canvas.FillColor = _color.WithAlpha(0.62f);
-            DrawBladeFacet(canvas, dirtyRect, (32, 32), (39, 17), (32, 1), (25, 17));
-            DrawBladeFacet(canvas, dirtyRect, (32, 32), (47, 39), (63, 32), (47, 25));
-            DrawBladeFacet(canvas, dirtyRect, (32, 32), (25, 47), (32, 63), (39, 47));
-            DrawBladeFacet(canvas, dirtyRect, (32, 32), (17, 25), (1, 32), (17, 39));
-
-            canvas.StrokeColor = _highlight;
-            canvas.StrokeSize = 2;
-            canvas.DrawPath(splat);
-
-            canvas.FontSize = 21;
-            canvas.FontColor = Colors.Black;
-
-            for (int x = -1; x <= 1; x++)
-            {
-                for (int y = -1; y <= 1; y++)
-                {
-                    if (x == 0 && y == 0)
-                        continue;
-
-                    DrawText(canvas, dirtyRect, x, y);
-                }
-            }
-
-            canvas.FontColor = Colors.White;
-            DrawText(canvas, dirtyRect, 0, 0);
-        }
-
-        private void DrawText(
-            ICanvas canvas,
-            RectF dirtyRect,
-            float offsetX,
-            float offsetY)
-        {
-            canvas.DrawString(
-                _damageText,
-                dirtyRect.X + offsetX,
-                dirtyRect.Y + offsetY,
-                dirtyRect.Width,
-                dirtyRect.Height,
-                HorizontalAlignment.Center,
-                VerticalAlignment.Center);
-        }
-
-        private static void DrawBladeFacet(
-            ICanvas canvas,
-            RectF bounds,
-            (float X, float Y) first,
-            (float X, float Y) second,
-            (float X, float Y) third,
-            (float X, float Y) fourth)
-        {
-            PathF facet = new();
-            (float X, float Y)[] points = { first, second, third, fourth };
-
-            for (int index = 0; index < points.Length; index++)
-            {
-                float x = bounds.X + points[index].X * bounds.Width / 64f;
-                float y = bounds.Y + points[index].Y * bounds.Height / 64f;
-
-                if (index == 0)
-                    facet.MoveTo(x, y);
-                else
-                    facet.LineTo(x, y);
-            }
-
-            facet.Close();
-            canvas.FillPath(facet);
-        }
-
-        private static PathF CreateNinjaStarShape(RectF bounds)
-        {
-            (float X, float Y)[] points =
-            {
-                (25, 17), (32, 1), (39, 17), (49, 15),
-                (47, 25), (63, 32), (47, 39), (49, 49),
-                (39, 47), (32, 63), (25, 47), (15, 49),
-                (17, 39), (1, 32), (17, 25), (15, 15)
-            };
-
-            PathF path = new();
-
-            for (int index = 0; index < points.Length; index++)
-            {
-                float x = bounds.X + points[index].X * bounds.Width / 64f;
-                float y = bounds.Y + points[index].Y * bounds.Height / 64f;
-
-                if (index == 0)
-                    path.MoveTo(x, y);
-                else
-                    path.LineTo(x, y);
-            }
-
-            path.Close();
-            return path;
-        }
     }
 }

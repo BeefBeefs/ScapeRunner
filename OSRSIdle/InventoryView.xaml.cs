@@ -370,6 +370,7 @@ public partial class InventoryView : ContentView
     private void UpdateInventory(Item? combineResult = null)
     {
         UpdateInventoryCapacity();
+        UpdateCombineAllEquipmentButton();
         UpdateSellJunkButton();
 
         InventoryGrid.Children.Clear();
@@ -555,6 +556,22 @@ public partial class InventoryView : ContentView
         BulkSellControls.IsVisible = SellJunkButton.IsVisible;
     }
 
+    private void UpdateCombineAllEquipmentButton()
+    {
+        int combinablePairs = _inventory.Items
+            .Where(entry =>
+                entry.Item.Type == ItemType.Equipment &&
+                entry.Item.UpgradeLevel < 10)
+            .Sum(entry => entry.Quantity / 2);
+
+        CombineAllEquipmentButton.Text = combinablePairs > 0
+            ? $"Combine All ({combinablePairs:N0})"
+            : "Combine All";
+        CombineAllEquipmentButton.IsEnabled = combinablePairs > 0;
+        CombineAllEquipmentButton.IsVisible =
+            _selectedCategory == InventoryCategory.Equipment;
+    }
+
     private bool IsInSelectedCategory(Item item)
     {
         return _selectedCategory switch
@@ -582,6 +599,20 @@ public partial class InventoryView : ContentView
         EventArgs e)
     {
         SellJunk(BulkSellMode.All);
+    }
+
+    private async void OnCombineAllEquipmentClicked(
+        object? sender,
+        EventArgs e)
+    {
+        if (_inventory.TryCombineAllEquipment(out int combinedPairs))
+        {
+            UpdateInventory();
+            await CustomDialogService.ShowAsync(
+                "Equipment combined",
+                $"Combined {combinedPairs:N0} equipment pairs.",
+                "OK");
+        }
     }
 
     private void OnSellOneJunkClicked(object? sender, EventArgs e) => SellJunk(BulkSellMode.One);

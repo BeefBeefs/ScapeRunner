@@ -4,6 +4,9 @@ public partial class App : Application
 {
     public Game Game { get; private set; } = null!;
 
+    private CombatManager? _preloadedCombatManager;
+    private CombatView? _preloadedCombatView;
+
     public App()
     {
         InitializeComponent();
@@ -23,6 +26,8 @@ public partial class App : Application
         {
             GameClock.SetDebugSpeedEnabled(false);
             Game?.Save();
+            _preloadedCombatView?.Dispose();
+            _preloadedCombatManager?.Dispose();
         };
 
         return window;
@@ -35,6 +40,13 @@ public partial class App : Application
 
         progress.Report(new StartupProgress(0.98, "Preparing character profile"));
         Game ??= new Game();
+
+        progress.Report(new StartupProgress(0.99, "Preparing combat enemy list"));
+        _preloadedCombatManager ??= new CombatManager(Game.Player);
+        _preloadedCombatView ??= new CombatView(
+            Game.Player,
+            _preloadedCombatManager);
+        _preloadedCombatView.PreloadEnemyList();
 
         progress.Report(new StartupProgress(1, "Ready"));
 
@@ -56,6 +68,16 @@ public partial class App : Application
         {
             window.Page = new AppShell();
         }
+    }
+
+    public (CombatManager? Manager, CombatView? View)
+        TakePreloadedCombatSession()
+    {
+        CombatManager? manager = _preloadedCombatManager;
+        CombatView? view = _preloadedCombatView;
+        _preloadedCombatManager = null;
+        _preloadedCombatView = null;
+        return (manager, view);
     }
 
     public void RenameCharacter(string name)

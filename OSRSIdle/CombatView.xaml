@@ -159,7 +159,7 @@
 
                             <BoxView
                                 x:Name="EnemyHPFill"
-                                HorizontalOptions="Start"
+                                HorizontalOptions="Fill"
                                 VerticalOptions="Fill"
                                 BackgroundColor="Green"
                                 AnchorX="0" />
@@ -209,9 +209,10 @@
 
                             <BoxView
                                 x:Name="EnemyAttackFill"
-                                HorizontalOptions="Start"
+                                HorizontalOptions="Fill"
                                 VerticalOptions="Fill"
-                                BackgroundColor="Green" />
+                                BackgroundColor="Green"
+                                AnchorX="0" />
 
                             <Border
                                 Stroke="#D99032"
@@ -263,14 +264,14 @@
 
                             <BoxView
                                 x:Name="PlayerHPFill"
-                                HorizontalOptions="Start"
+                                HorizontalOptions="Fill"
                                 VerticalOptions="Fill"
                                 BackgroundColor="Green"
                                 AnchorX="0" />
 
                             <BoxView
                                 x:Name="PlayerHealFill"
-                                HorizontalOptions="Start"
+                                HorizontalOptions="Fill"
                                 VerticalOptions="Fill"
                                 BackgroundColor="#8BFF9D"
                                 Opacity="0"
@@ -322,9 +323,10 @@
 
                             <BoxView
                                 x:Name="PlayerAttackFill"
-                                HorizontalOptions="Start"
+                                HorizontalOptions="Fill"
                                 VerticalOptions="Fill"
-                                BackgroundColor="Green" />
+                                BackgroundColor="Green"
+                                AnchorX="0" />
 
                             <Border
                                 Stroke="#D99032"

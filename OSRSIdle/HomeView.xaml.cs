@@ -9,6 +9,7 @@ public partial class HomeView : ContentView
     private readonly ActivityManager _activityManager;
 
     private bool _inventoryFullMessageShowing;
+    private bool _isActive;
 
 
     // ============================================================
@@ -46,24 +47,6 @@ public partial class HomeView : ContentView
         // Listen for combat XP changes.
         // --------------------------------------------------------
 
-        _combatManager.XPChanged +=
-            OnXPChanged;
-
-        _activityManager.ActivityStateChanged +=
-            OnActivityChanged;
-
-        _player.EquipmentChanged +=
-            OnEquipmentChanged;
-
-        _player.AutoEatSettingsChanged +=
-            OnAutoEatSettingsChanged;
-
-        _player.LuckiestDropChanged +=
-            OnLuckiestDropChanged;
-
-        _player.CollectionLog.CollectionChanged +=
-            OnCollectionChanged;
-
         HPXPBar.SizeChanged +=
             OnXPBarSizeChanged;
 
@@ -77,6 +60,7 @@ public partial class HomeView : ContentView
             OnXPBarSizeChanged;
 
         UpdateDisplay();
+        SetActive(true);
     }
 
 
@@ -86,23 +70,40 @@ public partial class HomeView : ContentView
 
     public void Dispose()
     {
-        _combatManager.XPChanged -=
-            OnXPChanged;
+        SetActive(false);
 
-        _activityManager.ActivityStateChanged -=
-            OnActivityChanged;
+        HPXPBar.SizeChanged -= OnXPBarSizeChanged;
+        AttackXPBar.SizeChanged -= OnXPBarSizeChanged;
+        StrengthXPBar.SizeChanged -= OnXPBarSizeChanged;
+        DefenseXPBar.SizeChanged -= OnXPBarSizeChanged;
 
-        _player.EquipmentChanged -=
-            OnEquipmentChanged;
+    }
 
-        _player.AutoEatSettingsChanged -=
-            OnAutoEatSettingsChanged;
+    public void SetActive(bool active)
+    {
+        if (_isActive == active)
+            return;
 
-        _player.LuckiestDropChanged -=
-            OnLuckiestDropChanged;
+        _isActive = active;
 
-        _player.CollectionLog.CollectionChanged -=
-            OnCollectionChanged;
+        if (active)
+        {
+            _combatManager.XPChanged += OnXPChanged;
+            _activityManager.ActivityStateChanged += OnActivityChanged;
+            _player.EquipmentChanged += OnEquipmentChanged;
+            _player.AutoEatSettingsChanged += OnAutoEatSettingsChanged;
+            _player.LuckiestDropChanged += OnLuckiestDropChanged;
+            _player.CollectionLog.CollectionChanged += OnCollectionChanged;
+        }
+        else
+        {
+            _combatManager.XPChanged -= OnXPChanged;
+            _activityManager.ActivityStateChanged -= OnActivityChanged;
+            _player.EquipmentChanged -= OnEquipmentChanged;
+            _player.AutoEatSettingsChanged -= OnAutoEatSettingsChanged;
+            _player.LuckiestDropChanged -= OnLuckiestDropChanged;
+            _player.CollectionLog.CollectionChanged -= OnCollectionChanged;
+        }
 
     }
 
@@ -115,7 +116,8 @@ public partial class HomeView : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            UpdateDisplay();
+            if (_isActive)
+                UpdateDisplay();
         });
     }
 
@@ -123,7 +125,8 @@ public partial class HomeView : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            UpdateDisplay();
+            if (_isActive)
+                UpdateDisplay();
         });
     }
 
@@ -131,22 +134,38 @@ public partial class HomeView : ContentView
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(UpdateActivityEfficiency);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                UpdateActivityEfficiency();
+        });
     }
 
     private void OnAutoEatSettingsChanged()
     {
-        MainThread.BeginInvokeOnMainThread(UpdateDisplay);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                UpdateDisplay();
+        });
     }
 
     private void OnLuckiestDropChanged()
     {
-        MainThread.BeginInvokeOnMainThread(UpdateLuckiestDropDisplay);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                UpdateLuckiestDropDisplay();
+        });
     }
 
     private void OnCollectionChanged()
     {
-        MainThread.BeginInvokeOnMainThread(UpdateDisplay);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                UpdateDisplay();
+        });
     }
 
     public void RefreshDisplay()
@@ -530,11 +549,31 @@ public partial class HomeView : ContentView
     }
 
 
-    private void OnAutoEquipClicked(
+    private async void OnAutoEquipClicked(
         object? sender,
         EventArgs e)
     {
-        _player.AutoEquipBestGear();
+        string? action = await CustomDialogService.ShowAsync(
+            "Auto-Equip Best Gear",
+            "Choose the bonus to prioritize:",
+            "Attack Bonus",
+            "Defense Bonus",
+            "Strength Bonus",
+            "Overall Bonus");
+
+        AutoEquipPriority? priority = action switch
+        {
+            "Attack Bonus" => AutoEquipPriority.AttackBonus,
+            "Defense Bonus" => AutoEquipPriority.DefenseBonus,
+            "Strength Bonus" => AutoEquipPriority.StrengthBonus,
+            "Overall Bonus" => AutoEquipPriority.OverallBonus,
+            _ => null
+        };
+
+        if (priority == null)
+            return;
+
+        _player.AutoEquipBestGear(priority.Value);
 
         UpdateDisplay();
     }

@@ -52,7 +52,7 @@ public static class RarityVisuals
             return visual;
 
         DropRarity rarity = rarityOverride ?? GetRarity(item);
-        if (rarity == DropRarity.Common)
+        if (rarity < DropRarity.Rare)
             return visual;
 
         Color rarityColor = GameThemeCache.GetRarityColor(rarity);
@@ -70,21 +70,7 @@ public static class RarityVisuals
         };
         visual.Children.Add(glow);
 
-        Label nearSparkle = CreateSparkle(rarityColor, size * 0.40);
-        nearSparkle.HorizontalOptions = LayoutOptions.End;
-        nearSparkle.VerticalOptions = LayoutOptions.Start;
-        nearSparkle.TranslationX = size * 0.10;
-        nearSparkle.TranslationY = -size * 0.10;
-        visual.Children.Add(nearSparkle);
-
-        Label farSparkle = CreateSparkle(rarityColor, size * 0.28);
-        farSparkle.HorizontalOptions = LayoutOptions.Start;
-        farSparkle.VerticalOptions = LayoutOptions.End;
-        farSparkle.TranslationX = -size * 0.06;
-        farSparkle.TranslationY = size * 0.06;
-        visual.Children.Add(farSparkle);
-
-        StartPulse(visual, glow, nearSparkle, farSparkle, rarity);
+        StartPulse(visual, glow, rarity);
         return visual;
     }
 
@@ -102,6 +88,14 @@ public static class RarityVisuals
 
     public static DropRarity GetRarity(Item item)
     {
+        if (StartupDataCache.IsInitialized &&
+            StartupDataCache.MaxDropRarityByItem.TryGetValue(
+                item,
+                out DropRarity cachedRarity))
+        {
+            return cachedRarity;
+        }
+
         return (StartupDataCache.IsInitialized
                 ? StartupDataCache.Enemies
                 : EnemyData.AllEnemies)
@@ -115,25 +109,9 @@ public static class RarityVisuals
             .Max();
     }
 
-    private static Label CreateSparkle(Color color, double size)
-    {
-        return new Label
-        {
-            Text = "✦",
-            FontSize = size,
-            TextColor = color,
-            Opacity = 0.35,
-            InputTransparent = true,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center
-        };
-    }
-
     private static void StartPulse(
         Grid visual,
         Border glow,
-        Label nearSparkle,
-        Label farSparkle,
         DropRarity rarity)
     {
         uint duration = rarity >= DropRarity.MegaRare ? 780u : 1200u;
@@ -146,24 +124,22 @@ public static class RarityVisuals
         {
             if (visual.Handler == null)
             {
-                StopPulse(glow, nearSparkle, farSparkle);
+                StopPulse(glow);
                 running = false;
             }
             else if (!running)
             {
-                CommitPulse(glow, nearSparkle, farSparkle, rarity, duration);
+                CommitPulse(glow, rarity, duration);
                 running = true;
             }
         }
 
         visual.HandlerChanged += OnHandlerChanged;
-        CommitPulse(glow, nearSparkle, farSparkle, rarity, duration);
+        CommitPulse(glow, rarity, duration);
     }
 
     private static void CommitPulse(
         Border glow,
-        Label nearSparkle,
-        Label farSparkle,
         DropRarity rarity,
         uint duration)
     {
@@ -173,27 +149,11 @@ public static class RarityVisuals
             { 0.5, 1.0, new Animation(value => glow.Opacity = value, GetGlowOpacity(rarity), 0.18) }
         }.Commit(glow, "rarityGlow", 16, duration, Easing.SinInOut, repeat: () => true);
 
-        new Animation
-        {
-            { 0.0, 0.5, new Animation(value => nearSparkle.Opacity = value, 0.15, 1.0) },
-            { 0.5, 1.0, new Animation(value => nearSparkle.Opacity = value, 1.0, 0.15) }
-        }.Commit(nearSparkle, "raritySparkle", 16, duration, Easing.SinInOut, repeat: () => true);
-
-        new Animation
-        {
-            { 0.0, 0.5, new Animation(value => farSparkle.Opacity = value, 0.65, 0.1) },
-            { 0.5, 1.0, new Animation(value => farSparkle.Opacity = value, 0.1, 0.65) }
-        }.Commit(farSparkle, "raritySparkleFar", 16, duration + 180, Easing.SinInOut, repeat: () => true);
     }
 
-    private static void StopPulse(
-        Border glow,
-        Label nearSparkle,
-        Label farSparkle)
+    private static void StopPulse(Border glow)
     {
         glow.AbortAnimation("rarityGlow");
-        nearSparkle.AbortAnimation("raritySparkle");
-        farSparkle.AbortAnimation("raritySparkleFar");
     }
 
     private static double GetGlowOpacity(DropRarity rarity) => rarity switch
