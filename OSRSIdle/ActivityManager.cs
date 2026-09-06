@@ -57,6 +57,7 @@ public class ActivityManager
         Player player)
     {
         _player = player;
+        GameClock.SpeedChanged += OnGameSpeedChanged;
     }
 
 
@@ -103,7 +104,40 @@ public class ActivityManager
             DateTime.UtcNow;
 
         ActionEnds = ActionStarted.AddMilliseconds(
-            ActivityMetrics.EffectiveActionTicks(CurrentActivity) * 600);
+            ActivityMetrics.EffectiveActionTicks(CurrentActivity) *
+            GameClock.StandardTickMilliseconds /
+            (double)GameClock.SpeedMultiplier);
+    }
+
+    private void OnGameSpeedChanged(object? sender, EventArgs e)
+    {
+        if (!IsActive || ActionStarted == default || ActionEnds == default)
+            return;
+
+        DateTime now = DateTime.UtcNow;
+        double oldDurationMilliseconds =
+            (ActionEnds - ActionStarted).TotalMilliseconds;
+
+        if (oldDurationMilliseconds <= 0)
+            return;
+
+        double progress = Math.Clamp(
+            (now - ActionStarted).TotalMilliseconds /
+            oldDurationMilliseconds,
+            0,
+            1);
+
+        double newDurationMilliseconds =
+            ActivityMetrics.EffectiveActionTicks(CurrentActivity!) *
+            GameClock.StandardTickMilliseconds /
+            (double)GameClock.SpeedMultiplier;
+
+        ActionStarted = now.AddMilliseconds(
+            -(newDurationMilliseconds * progress));
+        ActionEnds = ActionStarted.AddMilliseconds(
+            newDurationMilliseconds);
+
+        ActivityChanged?.Invoke(this, EventArgs.Empty);
     }
 
 
@@ -130,13 +164,18 @@ public class ActivityManager
                 try
                 {
                     await Task.Delay(
-                        remaining,
+                        TimeSpan.FromMilliseconds(
+                            Math.Min(remaining.TotalMilliseconds, 100)),
                         cancellationToken);
                 }
                 catch (TaskCanceledException)
                 {
                     return;
                 }
+
+                // Re-evaluate the deadline after each short wait so a
+                // mid-action debug-speed change takes effect immediately.
+                continue;
             }
 
             if (cancellationToken.IsCancellationRequested)

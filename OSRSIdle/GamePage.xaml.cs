@@ -41,8 +41,6 @@ public partial class GamePage : ContentPage
 
     private const int DeathRespawnTicks = 60;
 
-    private const int GameTickMilliseconds = 600;
-
     private const int HealthRegenerationTicks = 100;
 
     private IDispatcherTimer? _healthRegenerationTimer;
@@ -179,7 +177,9 @@ public partial class GamePage : ContentPage
     {
         _healthRegenerationTimer = Dispatcher.CreateTimer();
         _healthRegenerationTimer.Interval =
-            TimeSpan.FromMilliseconds(GameTickMilliseconds);
+            GameClock.TickInterval;
+
+        GameClock.SpeedChanged += OnGameSpeedChanged;
 
         _healthRegenerationTimer.Tick += (sender, e) =>
         {
@@ -203,6 +203,12 @@ public partial class GamePage : ContentPage
         _healthRegenerationTimer.Start();
     }
 
+    private void OnGameSpeedChanged(object? sender, EventArgs e)
+    {
+        if (_healthRegenerationTimer != null)
+            _healthRegenerationTimer.Interval = GameClock.TickInterval;
+    }
+
     private async void OnGamePageLoaded(
         object? sender,
         EventArgs e)
@@ -211,6 +217,11 @@ public partial class GamePage : ContentPage
             return;
 
         _offlineSummaryShown = true;
+
+        // Offline catch-up always presents over the Home page. This keeps the
+        // character portrait and navigation context visible instead of
+        // showing the page's plain background while the simulation runs.
+        ShowHomePage();
 
         // The Home view is attached during construction, but Android has not
         // necessarily committed its first layout when Loaded fires. Give it a
@@ -1129,7 +1140,7 @@ public partial class GamePage : ContentPage
 
 
             await Task.Delay(
-                GameTickMilliseconds,
+                GameClock.TickInterval,
                 token);
 
 

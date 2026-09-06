@@ -359,7 +359,8 @@ public class CombatManager
         // GAME TICK
         // ========================================================
 
-        const int GameTickMilliseconds = 600;
+        const int GameTickMilliseconds =
+            GameClock.StandardTickMilliseconds;
 
 
         // ========================================================
@@ -371,7 +372,8 @@ public class CombatManager
         // The UI receives updates every 100 ms so the attack bars
         // can animate smoothly between actual game ticks.
 
-        const int VisualUpdateMilliseconds = 100;
+        const int NormalVisualUpdateMilliseconds = 100;
+        const int DebugVisualUpdateMilliseconds = 15;
 
 
         // ========================================================
@@ -391,10 +393,16 @@ public class CombatManager
             !cancellationToken.IsCancellationRequested &&
             CurrentEnemy != null)
         {
+            int speedMultiplier = GameClock.SpeedMultiplier;
+            int visualUpdateMilliseconds =
+                GameClock.IsDebugSpeedEnabled
+                    ? DebugVisualUpdateMilliseconds
+                    : NormalVisualUpdateMilliseconds;
+
             try
             {
                 await Task.Delay(
-                    VisualUpdateMilliseconds,
+                    visualUpdateMilliseconds,
                     cancellationToken);
             }
             catch (TaskCanceledException)
@@ -419,14 +427,17 @@ public class CombatManager
             // Advance elapsed combat time.
             // ----------------------------------------------------
 
+            double simulatedElapsedMilliseconds =
+                visualUpdateMilliseconds * speedMultiplier;
+
             playerElapsedMilliseconds +=
-                VisualUpdateMilliseconds;
+                simulatedElapsedMilliseconds;
 
             enemyElapsedMilliseconds +=
-                VisualUpdateMilliseconds;
+                simulatedElapsedMilliseconds;
 
             _autoEatElapsedMilliseconds +=
-                VisualUpdateMilliseconds;
+                simulatedElapsedMilliseconds;
 
             while (_autoEatElapsedMilliseconds >= GameTickMilliseconds)
             {

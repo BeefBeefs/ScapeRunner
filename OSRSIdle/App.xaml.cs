@@ -19,7 +19,11 @@ public partial class App : Application
         window.Height = 800;
 #endif
 
-        window.Destroying += (sender, e) => Game?.Save();
+        window.Destroying += (sender, e) =>
+        {
+            GameClock.SetDebugSpeedEnabled(false);
+            Game?.Save();
+        };
 
         return window;
     }
@@ -91,6 +95,7 @@ public partial class App : Application
 
     protected override void OnSleep()
     {
+        GameClock.SetDebugSpeedEnabled(false);
         Game?.Save();
 
         base.OnSleep();

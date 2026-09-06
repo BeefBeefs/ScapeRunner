@@ -561,7 +561,10 @@ public partial class ActivityBar : ContentView
 
         int remainingTicks = Math.Max(
             0,
-            (int)Math.Ceiling((end - now).TotalMilliseconds / 600d));
+            (int)Math.Ceiling(
+                (end - now).TotalMilliseconds *
+                GameClock.SpeedMultiplier /
+                GameClock.StandardTickMilliseconds));
 
         ActivityTime.Text =
             $"{remainingTicks} tick{(remainingTicks == 1 ? "" : "s")}";

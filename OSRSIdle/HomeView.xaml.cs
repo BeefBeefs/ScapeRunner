@@ -62,6 +62,9 @@ public partial class HomeView : ContentView
         _player.CollectionLog.CollectionChanged +=
             OnCollectionChanged;
 
+        GameClock.SpeedChanged +=
+            OnGameSpeedChanged;
+
         HPXPBar.SizeChanged +=
             OnXPBarSizeChanged;
 
@@ -74,6 +77,8 @@ public partial class HomeView : ContentView
         DefenseXPBar.SizeChanged +=
             OnXPBarSizeChanged;
 
+        DebugSpeedSwitch.IsToggled =
+            GameClock.IsDebugSpeedEnabled;
 
         UpdateDisplay();
     }
@@ -102,6 +107,9 @@ public partial class HomeView : ContentView
 
         _player.CollectionLog.CollectionChanged -=
             OnCollectionChanged;
+
+        GameClock.SpeedChanged -=
+            OnGameSpeedChanged;
     }
 
 
@@ -157,6 +165,22 @@ public partial class HomeView : ContentView
         EventArgs e)
     {
         UpdateDisplay();
+    }
+
+    private static void OnDebugSpeedToggled(
+        object? sender,
+        ToggledEventArgs e)
+    {
+        GameClock.SetDebugSpeedEnabled(e.Value);
+    }
+
+    private void OnGameSpeedChanged(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            DebugSpeedSwitch.IsToggled =
+                GameClock.IsDebugSpeedEnabled;
+        });
     }
 
 

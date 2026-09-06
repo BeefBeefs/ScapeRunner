@@ -24,8 +24,6 @@ public partial class CombatView : ContentView
     private int _autoFightGeneration;
 
     private const int AutoFightDelayTicks = 12;
-    private const int GameTickMilliseconds = 600;
-
     private sealed class EnemyCardState
     {
         public required Label NameLabel { get; init; }
@@ -359,27 +357,20 @@ public partial class CombatView : ContentView
         };
         Image areaImage = new()
         {
-            Source = imageSource,
+            Source = ImageSource.FromFile(imageSource),
             Aspect = Aspect.AspectFill,
+            // Tint by blending the image with the banner background. A separate
+            // translucent BoxView can be composited as an opaque layer on Android,
+            // which covers the successfully loaded bitmap with a solid gray panel.
+            Opacity = 0.59,
             HorizontalOptions = LayoutOptions.Fill,
             VerticalOptions = LayoutOptions.Fill,
-            ZIndex = 0,
             InputTransparent = true
         };
         bannerContent.Children.Add(areaImage);
 
-        BoxView areaShade = new()
-        {
-            Color = Color.FromArgb("#68000000"),
-            ZIndex = 1,
-            InputTransparent = true
-        };
-        bannerContent.Children.Add(areaShade);
-
-        textLayout.ZIndex = 2;
         bannerContent.Children.Add(textLayout);
 
-        toggleLabel.ZIndex = 3;
         bannerContent.Children.Add(toggleLabel);
 
         Border tierBanner = new()
@@ -2339,7 +2330,7 @@ public partial class CombatView : ContentView
                 });
 
                 await Task.Delay(
-                    GameTickMilliseconds,
+                    GameClock.TickInterval,
                     token);
             }
 
