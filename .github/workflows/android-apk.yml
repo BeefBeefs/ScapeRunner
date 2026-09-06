@@ -64,6 +64,7 @@ jobs:
           }
 
           keytool -list -keystore "$env:ANDROID_KEYSTORE_PATH" `
+            -storetype PKCS12 `
             -storepass "$env:ANDROID_KEYSTORE_PASSWORD" `
             -alias "$env:ANDROID_KEY_ALIAS" `
             -noprompt
@@ -74,6 +75,7 @@ jobs:
             --property:AndroidPackageFormat=apk `
             --property:AndroidKeyStore=true `
             --property:AndroidSigningKeyStore="$env:ANDROID_KEYSTORE_PATH" `
+            --property:AndroidSigningStoreType=pkcs12 `
             --property:AndroidSigningKeyAlias="$env:ANDROID_KEY_ALIAS" `
             --property:AndroidSigningKeyPass="$env:ANDROID_KEY_PASSWORD" `
             --property:AndroidSigningStorePass="$env:ANDROID_KEYSTORE_PASSWORD"
