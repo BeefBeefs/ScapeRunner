@@ -101,19 +101,27 @@
                         BackgroundColor="#303030"
                         HorizontalOptions="Center">
 
-                        <Image
-                            x:Name="EnemyDetailIcon"
-                            WidthRequest="192"
-                            HeightRequest="192"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center"
-                            Aspect="AspectFit">
+                        <Grid>
 
-                            <Image.Clip>
-                                <RectangleGeometry Rect="0,0,192,192" />
-                            </Image.Clip>
+                            <Image
+                                x:Name="EnemyDetailIcon"
+                                WidthRequest="192"
+                                HeightRequest="192"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                Aspect="AspectFit">
 
-                        </Image>
+                                <Image.Clip>
+                                    <RectangleGeometry Rect="0,0,192,192" />
+                                </Image.Clip>
+
+                            </Image>
+
+                            <AbsoluteLayout
+                                x:Name="EnemyDetailSparkleLayer"
+                                InputTransparent="True" />
+
+                        </Grid>
 
                     </Border>
 
@@ -153,6 +161,15 @@
                             TranslationY="1" />
 
                     </HorizontalStackLayout>
+
+                    <Label
+                        x:Name="EnemyDetailCompletionLabel"
+                        Text="*Complete*"
+                        FontSize="14"
+                        FontAttributes="Bold"
+                        TextColor="Green"
+                        HorizontalOptions="Center"
+                        IsVisible="False" />
 
                     <Label
                         x:Name="EnemyStatsLabel"

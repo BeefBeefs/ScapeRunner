@@ -1686,7 +1686,7 @@ public partial class CombatView : ContentView
 
             // A hit should only jolt the portrait that was struck. Keeping the
             // surrounding card stationary makes the combat UI easier to read.
-            VisualElement target = e.AttackerIsPlayer ? EnemyPortraitFrame : PlayerPanel;
+            VisualElement target = e.AttackerIsPlayer ? EnemyIcon : PlayerPanel;
             _ = e.Hit && e.Damage > 0
                 ? PlayHitReactionAsync(target)
                 : PlayMissReactionAsync(target);

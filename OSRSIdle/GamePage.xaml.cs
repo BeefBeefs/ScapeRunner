@@ -1347,6 +1347,12 @@ public partial class GamePage : ContentPage
                 InputTransparent = true
             };
 
+        // The notification layer is scoped to the content row, which leaves
+        // Android's activity and navigation bars outside the centering area.
+        // Host this popup across the loaded game window instead.
+        Grid.SetRow(levelUpPopupHost, 0);
+        Grid.SetRowSpan(levelUpPopupHost, 3);
+
         // A proportional anchor keeps this popup centered in the available
         // game area on Android, where a nested Grid can otherwise measure a
         // centered child from its content origin instead of its full bounds.
@@ -1362,7 +1368,7 @@ public partial class GamePage : ContentPage
                 AbsoluteLayout.AutoSize));
 
         levelUpPopupHost.Children.Add(levelUpPopup);
-        NotificationLayer.Children.Add(levelUpPopupHost);
+        MainGrid.Children.Add(levelUpPopupHost);
 
 
         await Task.WhenAll(
@@ -1396,7 +1402,7 @@ public partial class GamePage : ContentPage
                 Easing.CubicIn));
 
 
-        NotificationLayer.Children.Remove(levelUpPopupHost);
+        MainGrid.Children.Remove(levelUpPopupHost);
     }
 
 

@@ -186,6 +186,7 @@ public sealed class GoldSliceButton : ContentView
             FontAttributes = FontAttributes,
             TextColor = TextColor,
             FontSize = FontSize,
+            HorizontalOptions = LayoutOptions.Fill,
             HorizontalTextAlignment = TextAlignment.Center,
             VerticalTextAlignment = TextAlignment.Center,
             InputTransparent = true
@@ -305,6 +306,7 @@ public sealed class GoldSliceButton : ContentView
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 0);
             _icon.HorizontalOptions = LayoutOptions.Start;
+            _label.HorizontalOptions = LayoutOptions.Fill;
             _label.HorizontalTextAlignment = TextAlignment.Center;
         }
         else if (hasIcon)
@@ -314,6 +316,7 @@ public sealed class GoldSliceButton : ContentView
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 1);
             _icon.HorizontalOptions = LayoutOptions.End;
+            _label.HorizontalOptions = LayoutOptions.Fill;
             _label.HorizontalTextAlignment = TextAlignment.Start;
         }
         else
@@ -321,6 +324,7 @@ public sealed class GoldSliceButton : ContentView
             _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 0);
+            _label.HorizontalOptions = LayoutOptions.Fill;
             _label.HorizontalTextAlignment = TextAlignment.Center;
         }
     }

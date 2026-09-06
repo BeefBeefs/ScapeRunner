@@ -92,6 +92,15 @@
                             MaximumWidthRequest="140" />
 
                         <Label
+                            x:Name="LuckiestDropChanceLabel"
+                            FontSize="10"
+                            TextColor="#FFE26A"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            MaximumWidthRequest="140"
+                            IsVisible="False" />
+
+                        <Label
                             x:Name="TotalEnemiesKilledLabel"
                             Text="Total enemies killed: 0"
                             FontSize="10"
@@ -130,6 +139,23 @@
                                 x:Name="DebugSpeedSwitch"
                                 Scale="0.72"
                                 Toggled="OnDebugSpeedToggled" />
+
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout
+                            Spacing="5"
+                            HorizontalOptions="Center">
+
+                            <Label
+                                Text="Debug 100× ticks"
+                                FontSize="10"
+                                TextColor="#FFE26A"
+                                VerticalOptions="Center" />
+
+                            <Switch
+                                x:Name="ExtremeDebugSpeedSwitch"
+                                Scale="0.72"
+                                Toggled="OnExtremeDebugSpeedToggled" />
 
                         </HorizontalStackLayout>
 

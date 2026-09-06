@@ -2,6 +2,8 @@ namespace OSRSIdle;
 
 public partial class HomeView : ContentView
 {
+    private bool _updatingDebugSpeedSwitches;
+
     private readonly Player _player;
 
     private readonly CombatManager _combatManager;
@@ -77,8 +79,7 @@ public partial class HomeView : ContentView
         DefenseXPBar.SizeChanged +=
             OnXPBarSizeChanged;
 
-        DebugSpeedSwitch.IsToggled =
-            GameClock.IsDebugSpeedEnabled;
+        UpdateDebugSpeedSwitches();
 
         UpdateDisplay();
     }
@@ -167,20 +168,67 @@ public partial class HomeView : ContentView
         UpdateDisplay();
     }
 
-    private static void OnDebugSpeedToggled(
+    private void OnDebugSpeedToggled(
         object? sender,
         ToggledEventArgs e)
     {
-        GameClock.SetDebugSpeedEnabled(e.Value);
+        if (_updatingDebugSpeedSwitches)
+            return;
+
+        if (e.Value)
+        {
+            GameClock.SetDebugSpeedMultiplier(
+                GameClock.DebugSpeedMultiplier);
+        }
+        else if (!ExtremeDebugSpeedSwitch.IsToggled)
+        {
+            GameClock.SetDebugSpeedEnabled(false);
+        }
+    }
+
+    private void OnExtremeDebugSpeedToggled(
+        object? sender,
+        ToggledEventArgs e)
+    {
+        if (_updatingDebugSpeedSwitches)
+            return;
+
+        if (e.Value)
+        {
+            GameClock.SetDebugSpeedMultiplier(
+                GameClock.ExtremeDebugSpeedMultiplier);
+        }
+        else if (!DebugSpeedSwitch.IsToggled)
+        {
+            GameClock.SetDebugSpeedEnabled(false);
+        }
     }
 
     private void OnGameSpeedChanged(object? sender, EventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            DebugSpeedSwitch.IsToggled =
-                GameClock.IsDebugSpeedEnabled;
+            UpdateDebugSpeedSwitches();
         });
+    }
+
+    private void UpdateDebugSpeedSwitches()
+    {
+        _updatingDebugSpeedSwitches = true;
+        try
+        {
+            DebugSpeedSwitch.IsToggled =
+                GameClock.IsDebugSpeedEnabled &&
+                GameClock.SpeedMultiplier == GameClock.DebugSpeedMultiplier;
+
+            ExtremeDebugSpeedSwitch.IsToggled =
+                GameClock.IsDebugSpeedEnabled &&
+                GameClock.SpeedMultiplier == GameClock.ExtremeDebugSpeedMultiplier;
+        }
+        finally
+        {
+            _updatingDebugSpeedSwitches = false;
+        }
     }
 
 
@@ -311,6 +359,7 @@ public partial class HomeView : ContentView
         if (!record.IsValid)
         {
             LuckiestDropLabel.Text = "Luckiest drop: None yet";
+            LuckiestDropChanceLabel.IsVisible = false;
             return;
         }
 
@@ -321,6 +370,14 @@ public partial class HomeView : ContentView
         LuckiestDropLabel.Text =
             $"Luckiest drop: {record.ItemName}\n" +
             $"{record.Attempts:N0} {record.Source} • {chanceText}";
+
+        long attempts = Math.Max(1, record.Attempts);
+        double cumulativeChance = 1d - Math.Pow(
+            1d - Math.Min(1d, record.Chance),
+            attempts);
+        LuckiestDropChanceLabel.Text =
+            $"Chance by {attempts:N0} {record.Source}: {cumulativeChance:P2}";
+        LuckiestDropChanceLabel.IsVisible = true;
     }
 
 

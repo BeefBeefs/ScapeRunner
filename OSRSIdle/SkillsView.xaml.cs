@@ -162,6 +162,8 @@ public partial class SkillsView : ContentView
                         ? GoldSliceButtonVariant.Green
                         : GoldSliceButtonVariant.Neutral,
 
+                    CenterText = true,
+
                     TextColor = Colors.White
                 };
 

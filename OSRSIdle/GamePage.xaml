@@ -93,13 +93,13 @@
             <!-- The dialog panel sits above this hit target. Tapping the
                  surrounding area closes item descriptions without allowing
                  the tap to reach the page underneath. -->
-            <BoxView
+            <Grid
                 x:Name="CustomDialogDismissArea"
-                Color="Transparent">
-                <BoxView.GestureRecognizers>
+                BackgroundColor="Transparent">
+                <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCustomDialogBackgroundTapped" />
-                </BoxView.GestureRecognizers>
-            </BoxView>
+                </Grid.GestureRecognizers>
+            </Grid>
 
             <Border
                 Style="{StaticResource GamePanelBorder}"
