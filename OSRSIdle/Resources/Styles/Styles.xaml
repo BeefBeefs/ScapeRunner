@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary 
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:OSRSIdle">
 
     <Style TargetType="ActivityIndicator">
         <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
@@ -165,18 +166,9 @@
     <Style TargetType="Label">
         <Setter Property="TextColor" Value="White" />
         <Setter Property="BackgroundColor" Value="Transparent" />
-            <Setter Property="FontFamily" Value="RuneScapeBold" />
+        <Setter Property="FontFamily" Value="RuneScapeBold" />
         <Setter Property="FontSize" Value="14" />
-        <!-- Keep light UI text legible over every panel, bar, and image. -->
-        <Setter Property="Shadow">
-            <Setter.Value>
-                <Shadow
-                    Brush="Black"
-                    Offset="0,0"
-                    Radius="2"
-                    Opacity="1" />
-            </Setter.Value>
-        </Setter>
+        <Setter Property="local:LabelShadow.IsEnabled" Value="True" />
         <Setter Property="VisualStateManager.VisualStateGroups">
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
@@ -421,17 +413,17 @@
 
     <Style TargetType="Page" ApplyToDerivedTypes="True">
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="BackgroundColor" Value="#242424" />
+        <Setter Property="BackgroundColor" Value="Black" />
     </Style>
 
     <Style TargetType="Shell" ApplyToDerivedTypes="True">
-        <Setter Property="Shell.BackgroundColor" Value="#242424" />
+        <Setter Property="Shell.BackgroundColor" Value="Black" />
         <Setter Property="Shell.ForegroundColor" Value="White" />
         <Setter Property="Shell.TitleColor" Value="#2D7D46" />
         <Setter Property="Shell.DisabledColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray950}}" />
         <Setter Property="Shell.UnselectedColor" Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray200}}" />
         <Setter Property="Shell.NavBarHasShadow" Value="False" />
-        <Setter Property="Shell.TabBarBackgroundColor" Value="#242424" />
+        <Setter Property="Shell.TabBarBackgroundColor" Value="Black" />
         <Setter Property="Shell.TabBarForegroundColor" Value="{AppThemeBinding Light={StaticResource Magenta}, Dark={StaticResource White}}" />
         <Setter Property="Shell.TabBarTitleColor" Value="{AppThemeBinding Light={StaticResource Magenta}, Dark={StaticResource White}}" />
         <Setter Property="Shell.TabBarUnselectedColor" Value="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray200}}" />

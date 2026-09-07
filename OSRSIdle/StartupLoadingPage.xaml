@@ -17,13 +17,7 @@
             TextColor="#FFE26A"
             HorizontalOptions="Center"
             VerticalOptions="Center"
-            TranslationY="-30">
-
-            <Label.Shadow>
-                <Shadow Brush="Black" Offset="1,1" Radius="2" Opacity="1" />
-            </Label.Shadow>
-
-        </Label>
+            TranslationY="-30" />
 
         <VerticalStackLayout
             Margin="18,0,18,24"

@@ -7,12 +7,12 @@
     x:Class="OSRSIdle.GamePage"
     NavigationPage.HasNavigationBar="False"
     Shell.NavBarIsVisible="False"
-    BackgroundColor="#242424">
+    BackgroundColor="Black">
 
     <Grid
     x:Name="MainGrid"
     RowDefinitions="*,Auto,Auto"
-    BackgroundColor="#242424">
+    BackgroundColor="Black">
 
         <!-- ================================================= -->
         <!-- GAME CONTENT                                      -->

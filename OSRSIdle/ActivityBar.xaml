@@ -297,17 +297,7 @@
                     TextColor="White"
                     HorizontalOptions="Center"
                     HorizontalTextAlignment="Center"
-                    TranslationY="1">
-
-                    <Label.Shadow>
-                        <Shadow
-                            Brush="Black"
-                            Offset="0,0"
-                            Radius="1"
-                            Opacity="1" />
-                    </Label.Shadow>
-
-                </Label>
+                    TranslationY="1" />
 
             </VerticalStackLayout>
 

@@ -7,6 +7,7 @@ public partial class SkillPage : ContentView
     private readonly Dictionary<SkillActivity, GoldSliceButton> _activityButtons = new();
     private readonly Dictionary<SkillActivity, ActivityCardUI> _activityCards = new();
     private IDispatcherTimer? _trainingProgressTimer;
+    private bool _isActive;
 
     public SkillPage(
         Skill skill,
@@ -17,18 +18,31 @@ public partial class SkillPage : ContentView
         _skill = skill;
         _activityManager = activityManager;
 
-        _activityManager.ActionCompleted += OnXPChanged;
-
         UpdateSkillHeader();
         BuildActivityList();
     }
 
+    public void SetActive(bool active)
+    {
+        if (_isActive == active)
+            return;
+
+        _isActive = active;
+
+        if (active)
+        {
+            _activityManager.ActionCompleted += OnXPChanged;
+            EnsureTrainingProgressTimer();
+        }
+        else
+        {
+            _activityManager.ActionCompleted -= OnXPChanged;
+            StopTrainingProgressTimer();
+        }
+    }
+
     public void RefreshDisplay()
     {
-        _activityManager.ActionCompleted -= OnXPChanged;
-        _activityManager.ActionCompleted += OnXPChanged;
-
-        EnsureTrainingProgressTimer();
         UpdateSkillHeader();
         UpdateActivityButtons();
     }
@@ -61,6 +75,9 @@ public partial class SkillPage : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (!_isActive)
+                return;
+
             UpdateSkillHeader();
 
             UpdateActivityButtons();
@@ -422,7 +439,8 @@ public partial class SkillPage : ContentView
 
     private void OnTrainingProgressTick(object? sender, EventArgs e)
     {
-        if (_activityManager.CurrentActivity is not SkillActivity activity ||
+        if (!_isActive ||
+            _activityManager.CurrentActivity is not SkillActivity activity ||
             !_activityCards.TryGetValue(activity, out ActivityCardUI? card))
         {
             return;
@@ -440,6 +458,16 @@ public partial class SkillPage : ContentView
         _trainingProgressTimer.Interval = TimeSpan.FromMilliseconds(200);
         _trainingProgressTimer.Tick += OnTrainingProgressTick;
         _trainingProgressTimer.Start();
+    }
+
+    private void StopTrainingProgressTimer()
+    {
+        if (_trainingProgressTimer == null)
+            return;
+
+        _trainingProgressTimer.Stop();
+        _trainingProgressTimer.Tick -= OnTrainingProgressTick;
+        _trainingProgressTimer = null;
     }
 
     private void UpdateTrainingProgress(ActivityCardUI card)
@@ -543,17 +571,7 @@ public partial class SkillPage : ContentView
         base.OnHandlerChanged();
 
         if (Handler == null)
-        {
-            _activityManager.ActionCompleted -=
-                OnXPChanged;
-
-            if (_trainingProgressTimer != null)
-            {
-                _trainingProgressTimer.Stop();
-                _trainingProgressTimer.Tick -= OnTrainingProgressTick;
-                _trainingProgressTimer = null;
-            }
-        }
+            SetActive(false);
     }
 
     private sealed class ActivityCardUI

@@ -8,16 +8,7 @@ public partial class CollectionLogView : ContentView
     private Enemy? _selectedEnemy;
 
     private bool _hideCompleted;
-
-    private CancellationTokenSource? _portraitSparkleCancellation;
-
-    private static readonly Color[] PortraitSparkleColors =
-    {
-        Color.FromArgb("#FFE26A"),
-        Color.FromArgb("#62C7FF"),
-        Color.FromArgb("#FF87C2"),
-        Colors.White
-    };
+    private bool _isActive;
 
     private readonly Dictionary<Enemy, EnemyCardState> _enemyCards = new();
 
@@ -38,10 +29,6 @@ public partial class CollectionLogView : ContentView
         _fightNowRequested =
             fightNowRequested;
 
-        _collectionLog.KillCountChanged += OnKillCountChanged;
-        _collectionLog.DropDiscovered += OnDropDiscovered;
-        _collectionLog.SkillingPetDiscovered += OnSkillingPetDiscovered;
-
         TapGestureRecognizer detailTapGesture =
             new TapGestureRecognizer();
 
@@ -54,6 +41,27 @@ public partial class CollectionLogView : ContentView
         UpdateDisplay();
     }
 
+    public void SetActive(bool active)
+    {
+        if (_isActive == active)
+            return;
+
+        _isActive = active;
+
+        if (active)
+        {
+            _collectionLog.KillCountChanged += OnKillCountChanged;
+            _collectionLog.DropDiscovered += OnDropDiscovered;
+            _collectionLog.SkillingPetDiscovered += OnSkillingPetDiscovered;
+        }
+        else
+        {
+            _collectionLog.KillCountChanged -= OnKillCountChanged;
+            _collectionLog.DropDiscovered -= OnDropDiscovered;
+            _collectionLog.SkillingPetDiscovered -= OnSkillingPetDiscovered;
+        }
+    }
+
     private void OnFightNowClicked(
         object? sender,
         EventArgs e)
@@ -64,16 +72,19 @@ public partial class CollectionLogView : ContentView
 
     public void Dispose()
     {
-        StopPortraitSparkles();
-        _collectionLog.KillCountChanged -= OnKillCountChanged;
-        _collectionLog.DropDiscovered -= OnDropDiscovered;
-        _collectionLog.SkillingPetDiscovered -= OnSkillingPetDiscovered;
+        SetActive(false);
     }
 
     private void OnKillCountChanged(Enemy enemy)
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (!_isActive)
+                return;
+
             if (_hideCompleted && _collectionLog.IsComplete(enemy))
             {
                 BuildEnemyList();
@@ -86,8 +97,14 @@ public partial class CollectionLogView : ContentView
 
     private void OnDropDiscovered(Item item)
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (!_isActive)
+                return;
+
             if (_hideCompleted)
             {
                 BuildEnemyList();
@@ -109,8 +126,15 @@ public partial class CollectionLogView : ContentView
 
     private void OnSkillingPetDiscovered(Item item)
     {
+        if (!_isActive)
+            return;
+
         _ = item;
-        MainThread.BeginInvokeOnMainThread(BuildSkillingPetList);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                BuildSkillingPetList();
+        });
     }
 
     private void OnHideCompletedToggled(
@@ -351,8 +375,6 @@ public partial class CollectionLogView : ContentView
         if (_selectedEnemy == enemy)
         {
             EnemyDetailCompletionLabel.IsVisible = complete;
-            if (complete && _portraitSparkleCancellation == null)
-                StartPortraitSparkles();
 
             EnemyStatsLabel.Text =
                 $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
@@ -365,7 +387,6 @@ public partial class CollectionLogView : ContentView
 
     private void HideEnemyDetails()
     {
-        StopPortraitSparkles();
         _selectedEnemy = null;
 
         EnemyDetailCard.IsVisible = false;
@@ -376,8 +397,6 @@ public partial class CollectionLogView : ContentView
     private void ShowEnemyDetails(
         Enemy enemy)
     {
-        StopPortraitSparkles();
-
         EnemyDetailCard.IsVisible =
             true;
 
@@ -397,8 +416,6 @@ public partial class CollectionLogView : ContentView
             enemy.Description;
 
         EnemyDetailIcon.Source = enemy.LargeIconImage;
-        if (_collectionLog.IsComplete(enemy))
-            StartPortraitSparkles();
 
         EnemyStatsLabel.Text =
             $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
@@ -471,82 +488,6 @@ public partial class CollectionLogView : ContentView
         }
 
         DropList.Opacity = 1;
-    }
-
-    private void StartPortraitSparkles()
-    {
-        _portraitSparkleCancellation = new CancellationTokenSource();
-        _ = RunPortraitSparklesAsync(_portraitSparkleCancellation.Token);
-    }
-
-    private async Task RunPortraitSparklesAsync(
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                List<Task> sparkleAnimations = new();
-                for (int index = 0; index < 3; index++)
-                {
-                    Label sparkle = new()
-                    {
-                        Text = "✦",
-                        FontSize = Random.Shared.Next(11, 20),
-                        TextColor = PortraitSparkleColors[
-                            Random.Shared.Next(PortraitSparkleColors.Length)],
-                        Opacity = 0,
-                        WidthRequest = 24,
-                        HeightRequest = 24,
-                        HorizontalTextAlignment = TextAlignment.Center,
-                        VerticalTextAlignment = TextAlignment.Center,
-                        InputTransparent = true
-                    };
-
-                    double x = Random.Shared.Next(4, 172);
-                    double y = Random.Shared.Next(4, 172);
-                    AbsoluteLayout.SetLayoutBounds(
-                        sparkle,
-                        new Rect(x, y, 24, 24));
-                    EnemyDetailSparkleLayer.Children.Add(sparkle);
-                    sparkleAnimations.Add(AnimatePortraitSparkleAsync(
-                        sparkle,
-                        cancellationToken));
-                }
-
-                await Task.WhenAll(sparkleAnimations);
-
-                await Task.Delay(
-                    Random.Shared.Next(220, 650),
-                    cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Closing the expanded card intentionally stops the sparkle loop.
-        }
-        catch
-        {
-            // Visual effects should never interrupt collection-log browsing.
-        }
-    }
-
-    private async Task AnimatePortraitSparkleAsync(
-        Label sparkle,
-        CancellationToken cancellationToken)
-    {
-        await sparkle.FadeToAsync(0.95, 130, Easing.CubicOut);
-        await Task.Delay(Random.Shared.Next(120, 420), cancellationToken);
-        await sparkle.FadeToAsync(0, 260, Easing.CubicIn);
-        EnemyDetailSparkleLayer.Children.Remove(sparkle);
-    }
-
-    private void StopPortraitSparkles()
-    {
-        _portraitSparkleCancellation?.Cancel();
-        _portraitSparkleCancellation?.Dispose();
-        _portraitSparkleCancellation = null;
-        EnemyDetailSparkleLayer.Children.Clear();
     }
 
     private static string FormatRarity(

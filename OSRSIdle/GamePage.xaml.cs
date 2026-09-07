@@ -790,6 +790,8 @@ public partial class GamePage : ContentPage
 
     public void ShowHomePage()
     {
+        DeactivateCachedViews();
+
         _homeView ??=
             new HomeView(
                 Player,
@@ -811,12 +813,14 @@ public partial class GamePage : ContentPage
     {
         _homeView?.SetActive(false);
         _combatView?.SetActive(false);
+        DeactivateCachedViews();
 
         _skillsView ??=
             new SkillsView(
                 Player,
                 ActivityManager);
 
+        _skillsView.SetActive(true);
         _skillsView.RefreshDisplay();
         GameContent.Content = _skillsView;
 
@@ -830,6 +834,7 @@ public partial class GamePage : ContentPage
     {
         _homeView?.SetActive(false);
         _combatView?.SetActive(false);
+        DeactivateCachedViews();
 
         if (!_skillPages.TryGetValue(skill, out SkillPage? skillPage))
         {
@@ -839,8 +844,9 @@ public partial class GamePage : ContentPage
             _skillPages[skill] = skillPage;
         }
 
-        skillPage.RefreshDisplay();
         GameContent.Content = skillPage;
+        skillPage.SetActive(true);
+        skillPage.RefreshDisplay();
 
         UpdateNavigationAppearance(SkillsNavigationButton);
         UpdatePageTitle(skill.Name);
@@ -850,6 +856,7 @@ public partial class GamePage : ContentPage
     public void ShowCombatPage()
     {
         _homeView?.SetActive(false);
+        DeactivateCachedViews();
 
         if (_combatView == null)
         {
@@ -876,11 +883,13 @@ public partial class GamePage : ContentPage
     {
         _homeView?.SetActive(false);
         _combatView?.SetActive(false);
+        DeactivateCachedViews();
 
         _inventoryView ??=
             new InventoryView(
                 Player);
 
+        _inventoryView.SetActive(true);
         _inventoryView.RefreshDisplay();
 
         GameContent.Content = _inventoryView;
@@ -894,12 +903,14 @@ public partial class GamePage : ContentPage
     {
         _homeView?.SetActive(false);
         _combatView?.SetActive(false);
+        DeactivateCachedViews();
 
         _collectionLogView ??=
             new CollectionLogView(
                 Player.CollectionLog,
                 StartCombatFromCollection);
 
+        _collectionLogView.SetActive(true);
         _collectionLogView.RefreshDisplay();
 
         GameContent.Content = _collectionLogView;
@@ -932,6 +943,7 @@ public partial class GamePage : ContentPage
     {
         _homeView?.SetActive(false);
         _combatView?.SetActive(false);
+        DeactivateCachedViews();
 
         _settingsView ??= new SettingsView(
             ResetCharacter,
@@ -941,6 +953,18 @@ public partial class GamePage : ContentPage
 
         UpdateNavigationAppearance(SettingsNavigationButton);
         UpdatePageTitle("Settings");
+    }
+
+    private void DeactivateCachedViews()
+    {
+        _homeView?.SetActive(false);
+        _combatView?.SetActive(false);
+        _skillsView?.SetActive(false);
+        _inventoryView?.SetActive(false);
+        _collectionLogView?.SetActive(false);
+
+        foreach (SkillPage skillPage in _skillPages.Values)
+            skillPage.SetActive(false);
     }
 
     public void Dispose()
@@ -991,6 +1015,8 @@ public partial class GamePage : ContentPage
         _inventoryView?.Dispose();
         _skillsView?.Dispose();
         _activityBar?.Dispose();
+
+        DeactivateCachedViews();
 
         CustomDialogService.ClearHost(this);
 

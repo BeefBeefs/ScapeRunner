@@ -8,6 +8,7 @@ public partial class SkillsView : ContentView
     // Keep references to the UI elements for each skill.
     private readonly Dictionary<Skill, SkillUI> _skillUI =
         new();
+    private bool _isActive;
 
     // ============================================================
     // CONSTRUCTOR
@@ -22,19 +23,31 @@ public partial class SkillsView : ContentView
         _player = player;
         _activityManager = activityManager;
 
-        _activityManager.ActionCompleted +=
-            OnXPChanged;
-
-        _activityManager.ActivityStateChanged +=
-            OnActivityChanged;
-
         BuildSkillList();
+    }
+
+    public void SetActive(bool active)
+    {
+        if (_isActive == active)
+            return;
+
+        _isActive = active;
+
+        if (active)
+        {
+            _activityManager.ActionCompleted += OnXPChanged;
+            _activityManager.ActivityStateChanged += OnActivityChanged;
+        }
+        else
+        {
+            _activityManager.ActionCompleted -= OnXPChanged;
+            _activityManager.ActivityStateChanged -= OnActivityChanged;
+        }
     }
 
     public void Dispose()
     {
-        _activityManager.ActionCompleted -= OnXPChanged;
-        _activityManager.ActivityStateChanged -= OnActivityChanged;
+        SetActive(false);
     }
 
     // ============================================================
@@ -336,7 +349,8 @@ public partial class SkillsView : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            UpdateSkillUI();
+            if (_isActive)
+                UpdateSkillUI();
         });
     }
 
@@ -346,7 +360,8 @@ public partial class SkillsView : ContentView
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            UpdateSkillUI();
+            if (_isActive)
+                UpdateSkillUI();
         });
     }
 
@@ -392,13 +407,7 @@ public partial class SkillsView : ContentView
         base.OnHandlerChanged();
 
         if (Handler == null)
-        {
-            _activityManager.ActionCompleted -=
-                OnXPChanged;
-
-            _activityManager.ActivityStateChanged -=
-                OnActivityChanged;
-        }
+            SetActive(false);
     }
 
     // ============================================================

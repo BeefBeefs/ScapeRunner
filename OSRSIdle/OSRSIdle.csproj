@@ -68,7 +68,7 @@
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
 
-		<MauiSplashScreen Include="Resources\Images\title.png" Color="#242424" BaseSize="1024,1536" />
+		<MauiSplashScreen Include="Resources\Images\title.png" Color="Black" BaseSize="1024,1536" />
 
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />

@@ -89,6 +89,7 @@ public partial class HomeView : ContentView
         if (active)
         {
             _combatManager.XPChanged += OnXPChanged;
+            _combatManager.LevelUp += OnCombatLevelUp;
             _activityManager.ActivityStateChanged += OnActivityChanged;
             _player.EquipmentChanged += OnEquipmentChanged;
             _player.AutoEatSettingsChanged += OnAutoEatSettingsChanged;
@@ -98,6 +99,7 @@ public partial class HomeView : ContentView
         else
         {
             _combatManager.XPChanged -= OnXPChanged;
+            _combatManager.LevelUp -= OnCombatLevelUp;
             _activityManager.ActivityStateChanged -= OnActivityChanged;
             _player.EquipmentChanged -= OnEquipmentChanged;
             _player.AutoEatSettingsChanged -= OnAutoEatSettingsChanged;
@@ -113,6 +115,17 @@ public partial class HomeView : ContentView
     // ============================================================
 
     private void OnXPChanged()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_isActive)
+                UpdateCombatXPBars();
+        });
+    }
+
+    private void OnCombatLevelUp(
+        object? sender,
+        LevelUpEventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -252,10 +265,11 @@ public partial class HomeView : ContentView
         UpdateEquipment();
 
 
-        // --------------------------------------------------------
-        // UPDATE COMBAT XP BARS
-        // --------------------------------------------------------
+        UpdateCombatXPBars();
+    }
 
+    private void UpdateCombatXPBars()
+    {
         UpdateSkillBar(
             HPXPBar,
             HPXPFill,

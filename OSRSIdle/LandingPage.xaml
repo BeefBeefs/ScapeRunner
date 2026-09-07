@@ -5,14 +5,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:OSRSIdle"
     x:Class="OSRSIdle.LandingPage"
-    BackgroundColor="#242424">
+    BackgroundColor="Black">
 
     <Grid>
-
-    <Image
-        Source="title.png"
-        Aspect="Fill"
-        InputTransparent="True" />
 
     <local:FireflyView
         x:Name="FireflyLayer"

@@ -4,15 +4,10 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:OSRSIdle"
-    x:Class="OSRSIdle.CombatView">
+    x:Class="OSRSIdle.CombatView"
+    BackgroundColor="Black">
 
     <Grid>
-
-        <Image
-            Source="background_combat.png"
-            Aspect="AspectFill"
-            Opacity="0.72"
-            InputTransparent="True" />
 
         <!-- Enemy selection screen -->
         <ScrollView
@@ -171,17 +166,7 @@
                                 FontAttributes="Bold"
                                 TextColor="White"
                                 HorizontalOptions="Center"
-                                VerticalOptions="Center">
-
-                                <Label.Shadow>
-                                    <Shadow
-                                        Brush="Black"
-                                        Offset="0,0"
-                                        Radius="2"
-                                        Opacity="1" />
-                                </Label.Shadow>
-
-                            </Label>
+                                VerticalOptions="Center" />
 
                             <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
 
@@ -284,17 +269,7 @@
                                 FontAttributes="Bold"
                                 TextColor="White"
                                 HorizontalOptions="Center"
-                                VerticalOptions="Center">
-
-                                <Label.Shadow>
-                                    <Shadow
-                                        Brush="Black"
-                                        Offset="0,0"
-                                        Radius="2"
-                                        Opacity="1" />
-                                </Label.Shadow>
-
-                            </Label>
+                                VerticalOptions="Center" />
 
                             <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
 

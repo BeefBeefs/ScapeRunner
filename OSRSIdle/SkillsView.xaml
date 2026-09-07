@@ -3,15 +3,10 @@
 <ContentView
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    x:Class="OSRSIdle.SkillsView">
+    x:Class="OSRSIdle.SkillsView"
+    BackgroundColor="Black">
 
     <Grid>
-
-        <Image
-            Source="background_skills.png"
-            Aspect="AspectFill"
-            Opacity="0.72"
-            InputTransparent="True" />
 
     <ScrollView>
 

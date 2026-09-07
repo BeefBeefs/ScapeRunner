@@ -48,6 +48,7 @@ public partial class InventoryView : ContentView
         InventorySortMode.Name;
 
     private bool _sortAscending = true;
+    private bool _isActive;
 
 
     // ============================================================
@@ -69,10 +70,6 @@ public partial class InventoryView : ContentView
         // Listen for inventory changes.
         // --------------------------------------------------------
 
-        _inventory.InventoryChanged +=
-            OnInventoryChanged;
-
-
         // --------------------------------------------------------
         // Initial inventory.
         // --------------------------------------------------------
@@ -91,9 +88,13 @@ public partial class InventoryView : ContentView
 
     private void OnInventoryChanged()
     {
+        if (!_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            UpdateInventory();
+            if (_isActive)
+                UpdateInventory();
         });
     }
 
@@ -224,6 +225,19 @@ public partial class InventoryView : ContentView
         SortDirectionButton.Variant = GoldSliceButtonVariant.Neutral;
     }
 
+    public void SetActive(bool active)
+    {
+        if (_isActive == active)
+            return;
+
+        _isActive = active;
+
+        if (active)
+            _inventory.InventoryChanged += OnInventoryChanged;
+        else
+            _inventory.InventoryChanged -= OnInventoryChanged;
+    }
+
     public void RefreshDisplay()
     {
         UpdateInventory();
@@ -231,7 +245,7 @@ public partial class InventoryView : ContentView
 
     public void Dispose()
     {
-        _inventory.InventoryChanged -= OnInventoryChanged;
+        SetActive(false);
     }
 
 
