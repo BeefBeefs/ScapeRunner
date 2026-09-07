@@ -51,11 +51,7 @@ public partial class GamePage : ContentPage
 
     private int _healthRegenerationTickCount;
 
-    private IDispatcherTimer? _fpsTimer;
-
-    private DateTime _fpsWindowStartedUtc = DateTime.UtcNow;
-
-    private int _fpsFrameCount;
+    private readonly FrameRateMonitor _frameRateMonitor;
 
     private bool _offlineSummaryShown;
 
@@ -117,7 +113,7 @@ public partial class GamePage : ContentPage
         _game.ResumeSavedSkillingActivity(ActivityManager);
 
         StartHealthRegenerationTimer();
-        StartFpsCounterTimer();
+        _frameRateMonitor = new FrameRateMonitor(UpdateFpsDisplay);
 
 
         // --------------------------------------------------------
@@ -235,29 +231,21 @@ public partial class GamePage : ContentPage
         _game.ScheduleSave();
     }
 
-    private void StartFpsCounterTimer()
+    private void UpdateFpsDisplay(double framesPerSecond)
     {
-        _fpsTimer = Dispatcher.CreateTimer();
-        _fpsTimer.Interval = TimeSpan.FromMilliseconds(16);
-        _fpsTimer.Tick += OnFpsTimerTick;
-        _fpsTimer.Start();
+        FpsDebugLabel.Text = $"FPS: {framesPerSecond:0}";
     }
 
-    private void OnFpsTimerTick(object? sender, EventArgs e)
+    protected override void OnAppearing()
     {
-        _fpsFrameCount++;
+        base.OnAppearing();
+        _frameRateMonitor.Start();
+    }
 
-        DateTime now = DateTime.UtcNow;
-        double elapsedSeconds =
-            (now - _fpsWindowStartedUtc).TotalSeconds;
-
-        if (elapsedSeconds < 0.25d)
-            return;
-
-        double framesPerSecond = _fpsFrameCount / elapsedSeconds;
-        FpsDebugLabel.Text = $"FPS: {framesPerSecond:0}";
-        _fpsFrameCount = 0;
-        _fpsWindowStartedUtc = now;
+    protected override void OnDisappearing()
+    {
+        _frameRateMonitor.Stop();
+        base.OnDisappearing();
     }
 
     private async void OnGamePageLoaded(
@@ -858,19 +846,22 @@ public partial class GamePage : ContentPage
         _homeView?.SetActive(false);
         DeactivateCachedViews();
 
+        bool refreshExistingCombatView =
+            _combatView?.HasBeenDisplayed == true;
+
         if (_combatView == null)
         {
             _combatView = new CombatView(
                 Player,
                 CombatManager);
-        }
-        else
-        {
-            _combatView.RefreshEnemyList();
+            _combatView.PreloadEnemyList();
         }
 
         _combatView.SetActive(true);
         GameContent.Content = _combatView;
+
+        if (refreshExistingCombatView)
+            _combatView.RefreshEnemyList();
 
         _combatView.RefreshCombatDisplay();
 
@@ -1001,12 +992,7 @@ public partial class GamePage : ContentPage
             _healthRegenerationTimer = null;
         }
 
-        if (_fpsTimer != null)
-        {
-            _fpsTimer.Stop();
-            _fpsTimer.Tick -= OnFpsTimerTick;
-            _fpsTimer = null;
-        }
+        _frameRateMonitor.Dispose();
 
         _settingsView?.Dispose();
         _homeView?.Dispose();

@@ -6,11 +6,19 @@
     x:Class="OSRSIdle.MainPage"
     Title="OSRS Idle">
 
-    <ScrollView>
+    <Grid BackgroundColor="Black">
 
-        <VerticalStackLayout
-            Padding="20"
-            Spacing="15">
+        <Image
+            Source="background_home.png"
+            Aspect="AspectFill"
+            Opacity="0.30"
+            InputTransparent="True" />
+
+        <ScrollView>
+
+            <VerticalStackLayout
+                Padding="20"
+                Spacing="15">
 
             <Label
                 Text="OSRS IDLE"
@@ -30,8 +38,10 @@
                 x:Name="SkillList"
                 Spacing="10" />
 
-        </VerticalStackLayout>
+            </VerticalStackLayout>
 
-    </ScrollView>
+        </ScrollView>
+
+    </Grid>
 
 </ContentPage>

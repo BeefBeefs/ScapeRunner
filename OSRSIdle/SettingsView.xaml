@@ -8,6 +8,13 @@
     BackgroundColor="Black">
 
     <Grid>
+
+        <Image
+            Source="background_settings.png"
+            Aspect="AspectFill"
+            Opacity="0.28"
+            InputTransparent="True" />
+
         <ScrollView>
             <Border Style="{StaticResource GamePanelBorder}" Margin="12">
                 <VerticalStackLayout Spacing="12">

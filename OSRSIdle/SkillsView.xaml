@@ -8,6 +8,12 @@
 
     <Grid>
 
+    <Image
+        Source="background_skills.png"
+        Aspect="AspectFill"
+        Opacity="0.30"
+        InputTransparent="True" />
+
     <ScrollView>
 
         <VerticalStackLayout

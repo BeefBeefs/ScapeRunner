@@ -9,6 +9,12 @@
 
     <Grid>
 
+        <Image
+            Source="background_combat.png"
+            Aspect="AspectFill"
+            Opacity="0.34"
+            InputTransparent="True" />
+
         <!-- Enemy selection screen -->
         <ScrollView
             x:Name="EnemySelectionView">

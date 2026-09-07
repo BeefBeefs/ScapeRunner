@@ -38,7 +38,15 @@ public partial class App : Application
     {
         await StartupDataCache.InitializeAsync(progress);
 
-        progress.Report(new StartupProgress(0.98, "Preparing character profile"));
+        Window? window = Windows.FirstOrDefault();
+        if (window?.Page is StartupLoadingPage startupLoadingPage)
+        {
+            await startupLoadingPage.WarmCombatImagesAsync(
+                StartupDataCache.Enemies,
+                progress);
+        }
+
+        progress.Report(new StartupProgress(0.985, "Preparing character profile"));
         Game ??= new Game();
 
         progress.Report(new StartupProgress(0.99, "Preparing combat enemy list"));
@@ -53,7 +61,6 @@ public partial class App : Application
         // Allow the final progress update to render before changing pages.
         await Task.Delay(80);
 
-        Window? window = Windows.FirstOrDefault();
         if (window != null)
             window.Page = new LandingPage();
     }

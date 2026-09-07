@@ -3,13 +3,22 @@
 <ContentView
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    x:Class="OSRSIdle.SkillPage">
+    x:Class="OSRSIdle.SkillPage"
+    BackgroundColor="Black">
 
-    <ScrollView>
+    <Grid>
 
-        <VerticalStackLayout
-            Padding="12"
-            Spacing="8">
+        <Image
+            Source="background_skill.png"
+            Aspect="AspectFill"
+            Opacity="0.30"
+            InputTransparent="True" />
+
+        <ScrollView>
+
+            <VerticalStackLayout
+                Padding="12"
+                Spacing="8">
 
             <!-- SKILL HEADER -->
 
@@ -55,8 +64,10 @@
                 x:Name="ActivityList"
                 Spacing="6" />
 
-        </VerticalStackLayout>
+            </VerticalStackLayout>
 
-    </ScrollView>
+        </ScrollView>
+
+    </Grid>
 
 </ContentView>

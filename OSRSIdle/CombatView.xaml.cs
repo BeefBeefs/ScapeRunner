@@ -23,6 +23,7 @@ public partial class CombatView : ContentView
     private int _combatUiUpdatePending;
     private bool _disposed;
     private bool _isActive;
+    private bool _hasBeenDisplayed;
     private bool _playerDamageBarInitialized;
     private bool _enemyDamageBarInitialized;
 
@@ -45,7 +46,9 @@ public partial class CombatView : ContentView
         public required Label ToggleLabel { get; init; }
         public required Label CompletionLabel { get; init; }
         public required VerticalStackLayout List { get; init; }
-        public required Border FirstEnemyCard { get; init; }
+        public required IReadOnlyList<Enemy> Enemies { get; init; }
+        public Border? FirstEnemyCard { get; set; }
+        public bool IsBuilt { get; set; }
     }
 
     private sealed class EnemyDropVisual
@@ -158,7 +161,11 @@ public partial class CombatView : ContentView
     public void SetActive(bool active)
     {
         _isActive = active;
+        if (active)
+            _hasBeenDisplayed = true;
     }
+
+    public bool HasBeenDisplayed => _hasBeenDisplayed;
 
     public CombatView(
         Player player,
@@ -202,11 +209,6 @@ public partial class CombatView : ContentView
         _combatManager.EnemyDefeated += OnEnemyDefeated;
         _combatManager.PlayerDefeated += OnPlayerDefeated;
         _player.CollectionLog.DropDiscovered += OnDropDiscovered;
-
-        // Keep construction on the UI dispatcher. Startup explicitly calls
-        // PreloadEnemyList while the loading screen is visible, so this is a
-        // no-op when the view is later attached to the game page.
-        Dispatcher.Dispatch(PreloadEnemyList);
 
         if (_combatManager.IsInCombat)
         {
@@ -412,25 +414,13 @@ public partial class CombatView : ContentView
                 IsVisible = false
             };
 
-        Border? firstEnemyCard = null;
-        foreach (Enemy enemy in enemies)
-        {
-            Border enemyCard = BuildEnemyCard(
-                enemy,
-                enemyList);
-            firstEnemyCard ??= enemyCard;
-        }
-
-        if (firstEnemyCard == null)
-            return;
-
         _tierSections[tier] = new TierSectionState
         {
             Banner = tierBanner,
             ToggleLabel = toggleLabel,
             CompletionLabel = completionLabel,
             List = enemyList,
-            FirstEnemyCard = firstEnemyCard
+            Enemies = enemies
         };
 
         TapGestureRecognizer tapGesture = new();
@@ -448,6 +438,8 @@ public partial class CombatView : ContentView
             return;
 
         int navigationGeneration = ++_areaNavigationGeneration;
+
+        EnsureTierBuilt(selectedSection);
 
         foreach ((EnemyTier sectionTier, TierSectionState section) in _tierSections)
         {
@@ -473,10 +465,29 @@ public partial class CombatView : ContentView
             return;
         }
 
-        await EnemySelectionView.ScrollToAsync(
-            selectedSection.FirstEnemyCard,
-            ScrollToPosition.Start,
-            true);
+        if (selectedSection.FirstEnemyCard != null)
+        {
+            await EnemySelectionView.ScrollToAsync(
+                selectedSection.FirstEnemyCard,
+                ScrollToPosition.Start,
+                true);
+        }
+    }
+
+    private void EnsureTierBuilt(TierSectionState section)
+    {
+        if (section.IsBuilt)
+            return;
+
+        section.IsBuilt = true;
+
+        foreach (Enemy enemy in section.Enemies)
+        {
+            Border enemyCard = BuildEnemyCard(
+                enemy,
+                section.List);
+            section.FirstEnemyCard ??= enemyCard;
+        }
     }
 
     private static (string Name, string Description, string ImageSource)

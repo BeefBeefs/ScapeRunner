@@ -9,6 +9,12 @@
 
     <Grid>
 
+    <Image
+        Source="background_collection_log.png"
+        Aspect="AspectFill"
+        Opacity="0.34"
+        InputTransparent="True" />
+
     <ScrollView
         x:Name="CollectionScrollView">
 

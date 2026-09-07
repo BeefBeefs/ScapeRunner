@@ -9,6 +9,24 @@
 
     <Grid>
 
+        <Image
+            Source="background_startup.png"
+            Aspect="AspectFill"
+            Opacity="0.32"
+            InputTransparent="True" />
+
+        <!--
+            Keep this layer visible to the native view handlers but visually
+            transparent. Its image controls warm the platform image decoder
+            while the startup page is already on screen.
+        -->
+        <Grid
+            x:Name="ImageWarmupLayer"
+            InputTransparent="True"
+            IsClippedToBounds="False"
+            Opacity="0">
+        </Grid>
+
         <Label
             Text="SCAPERUNNER"
             FontFamily="RuneScapeBold"

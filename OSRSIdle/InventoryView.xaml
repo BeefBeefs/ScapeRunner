@@ -11,6 +11,13 @@
         RowDefinitions="Auto,Auto,Auto,Auto,*"
         RowSpacing="8">
 
+        <Image
+            Grid.RowSpan="5"
+            Source="background_inventory.png"
+            Aspect="AspectFill"
+            Opacity="0.30"
+            InputTransparent="True" />
+
         <!-- ================================================= -->
         <!-- TITLE                                             -->
         <!-- ================================================= -->
