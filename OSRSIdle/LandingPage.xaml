@@ -9,11 +9,13 @@
 
     <Grid BackgroundColor="Transparent">
 
-    <Image
-        Source="background_landing.png"
-        Aspect="AspectFill"
-        Opacity="0.36"
-        InputTransparent="True" />
+        <Image
+            x:Name="PageBackgroundImage"
+            Source="background_landing.png"
+            Aspect="AspectFill"
+            HorizontalOptions="Fill"
+            VerticalOptions="Fill"
+            InputTransparent="True" />
 
     <local:FireflyView
         x:Name="FireflyLayer"
