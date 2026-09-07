@@ -29,24 +29,12 @@ public partial class SettingsView : ContentView
         DebugSettings.Changed -= OnDebugSettingsChanged;
     }
 
-    private void OnDebugSpeedToggled(object? sender, ToggledEventArgs e)
+    private void OnSpeedUpToggled(object? sender, ToggledEventArgs e)
     {
         if (_updatingDebugSwitches)
             return;
-        if (e.Value)
-            GameClock.SetDebugSpeedMultiplier(GameClock.DebugSpeedMultiplier);
-        else if (!ExtremeDebugSpeedSwitch.IsToggled)
-            GameClock.SetDebugSpeedEnabled(false);
-    }
 
-    private void OnExtremeDebugSpeedToggled(object? sender, ToggledEventArgs e)
-    {
-        if (_updatingDebugSwitches)
-            return;
-        if (e.Value)
-            GameClock.SetDebugSpeedMultiplier(GameClock.ExtremeDebugSpeedMultiplier);
-        else if (!DebugSpeedSwitch.IsToggled)
-            GameClock.SetDebugSpeedEnabled(false);
+        GameClock.SetSpeedUpEnabled(e.Value);
     }
 
     private void OnInstakillToggled(object? sender, ToggledEventArgs e)
@@ -65,12 +53,7 @@ public partial class SettingsView : ContentView
         _updatingDebugSwitches = true;
         try
         {
-            DebugSpeedSwitch.IsToggled =
-                GameClock.IsDebugSpeedEnabled &&
-                GameClock.SpeedMultiplier == GameClock.DebugSpeedMultiplier;
-            ExtremeDebugSpeedSwitch.IsToggled =
-                GameClock.IsDebugSpeedEnabled &&
-                GameClock.SpeedMultiplier == GameClock.ExtremeDebugSpeedMultiplier;
+            SpeedUpSwitch.IsToggled = GameClock.IsSpeedUpEnabled;
             InstakillSwitch.IsToggled = DebugSettings.IsInstakillEnabled;
         }
         finally

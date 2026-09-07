@@ -24,7 +24,7 @@ public partial class App : Application
 
         window.Destroying += (sender, e) =>
         {
-            GameClock.SetDebugSpeedEnabled(false);
+            GameClock.SetSpeedUpEnabled(false);
             Game?.Save();
             _preloadedCombatView?.Dispose();
             _preloadedCombatManager?.Dispose();
@@ -127,7 +127,7 @@ public partial class App : Application
 
     protected override void OnSleep()
     {
-        GameClock.SetDebugSpeedEnabled(false);
+        GameClock.SetSpeedUpEnabled(false);
         Game?.Save();
 
         base.OnSleep();

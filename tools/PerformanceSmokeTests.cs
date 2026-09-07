@@ -39,7 +39,7 @@ internal static class PerformanceSmokeTests
         }
         finally
         {
-            GameClock.SetDebugSpeedEnabled(false);
+            GameClock.SetSpeedUpEnabled(false);
             File.WriteAllLines(ReportPath, Results);
             host.Content = new ScrollView { Content = new Label { Text = string.Join("\n", Results), TextColor = Colors.White } };
         }
@@ -163,6 +163,11 @@ internal static class PerformanceSmokeTests
         using ActivityManager activity = new(player);
         using CombatManager combat = new(player);
         using ActivityBar bar = new(activity, combat);
+        GameClock.SetSpeedUpEnabled(true);
+        Check(
+            GameClock.SpeedMultiplier == GameClock.SpeedUpMultiplier &&
+            GameClock.TickInterval.TotalMilliseconds == GameClock.SpeedUpTickMilliseconds,
+            "Stable speed-up clock");
         bool checkedSkillBackground = false;
         foreach (Skill skill in player.Skills)
         {
@@ -177,9 +182,13 @@ internal static class PerformanceSmokeTests
                     "Skill detail");
                 checkedSkillBackground = true;
             }
-            GameClock.SetDebugSpeedMultiplier(100);
-            activity.StartActivity(skill, skill.Activities[0]);
-            DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+            SkillActivity skillActivity = skill.Activities[0];
+            activity.StartActivity(skill, skillActivity);
+            double expectedDurationMilliseconds =
+                ActivityMetrics.EffectiveActionTicks(skillActivity) *
+                GameClock.TickInterval.TotalMilliseconds;
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(
+                expectedDurationMilliseconds + 2000);
             while (skill.ActionsCompleted == 0 && DateTime.UtcNow < deadline)
                 await Task.Delay(25);
             Check(skill.ActionsCompleted > 0 && skill.XP > 0, skill.Name + " action rewards and UI");
@@ -189,7 +198,7 @@ internal static class PerformanceSmokeTests
             Check(skill.ActionsCompleted == actions, skill.Name + " cancellation");
             skillView.SetActive(false);
         }
-        GameClock.SetDebugSpeedEnabled(false);
+        GameClock.SetSpeedUpEnabled(false);
         HomeView home = new(player, combat, activity);
         host.Content = home;
         home.SetActive(true);

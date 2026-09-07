@@ -7,47 +7,35 @@ namespace OSRSIdle;
 public static class GameClock
 {
     public const int StandardTickMilliseconds = 600;
-    public const int DebugSpeedMultiplier = 20;
-    public const int ExtremeDebugSpeedMultiplier = 100;
 
-    private static bool _isDebugSpeedEnabled;
-    private static int _debugSpeedMultiplier = DebugSpeedMultiplier;
+    // Accelerated play advances exactly one game tick per callback. Keeping
+    // the callback at 60 ms avoids flooding Android's dispatcher and combat
+    // animation queue as the former 20x and 100x modes could do.
+    public const int SpeedUpTickMilliseconds = 60;
+    public const int SpeedUpMultiplier =
+        StandardTickMilliseconds / SpeedUpTickMilliseconds;
 
-    public static bool IsDebugSpeedEnabled => _isDebugSpeedEnabled;
+    private static bool _isSpeedUpEnabled;
+
+    public static bool IsSpeedUpEnabled => _isSpeedUpEnabled;
 
     public static int SpeedMultiplier =>
-        _isDebugSpeedEnabled ? _debugSpeedMultiplier : 1;
+        _isSpeedUpEnabled ? SpeedUpMultiplier : 1;
 
     public static TimeSpan TickInterval =>
         TimeSpan.FromMilliseconds(
-            StandardTickMilliseconds / (double)SpeedMultiplier);
+            _isSpeedUpEnabled
+                ? SpeedUpTickMilliseconds
+                : StandardTickMilliseconds);
 
     public static event EventHandler? SpeedChanged;
 
-    public static void SetDebugSpeedEnabled(bool enabled)
+    public static void SetSpeedUpEnabled(bool enabled)
     {
-        if (_isDebugSpeedEnabled == enabled)
+        if (_isSpeedUpEnabled == enabled)
             return;
 
-        _isDebugSpeedEnabled = enabled;
+        _isSpeedUpEnabled = enabled;
         SpeedChanged?.Invoke(null, EventArgs.Empty);
-    }
-
-    public static void SetDebugSpeedMultiplier(int multiplier)
-    {
-        if (multiplier != DebugSpeedMultiplier &&
-            multiplier != ExtremeDebugSpeedMultiplier)
-        {
-            throw new ArgumentOutOfRangeException(nameof(multiplier));
-        }
-
-        bool changed = _debugSpeedMultiplier != multiplier ||
-            !_isDebugSpeedEnabled;
-
-        _debugSpeedMultiplier = multiplier;
-        _isDebugSpeedEnabled = true;
-
-        if (changed)
-            SpeedChanged?.Invoke(null, EventArgs.Empty);
     }
 }

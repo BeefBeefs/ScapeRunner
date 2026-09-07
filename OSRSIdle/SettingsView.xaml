@@ -24,13 +24,8 @@
                     <Label Text="DEBUG OPTIONS" FontSize="18" TextColor="#FFE26A" HorizontalOptions="Center" />
 
                     <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">
-                        <Label Text="Debug 20× ticks" FontSize="13" VerticalOptions="Center" />
-                        <Switch x:Name="DebugSpeedSwitch" Scale="0.82" Toggled="OnDebugSpeedToggled" />
-                    </HorizontalStackLayout>
-
-                    <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">
-                        <Label Text="Debug 100× ticks" FontSize="13" VerticalOptions="Center" />
-                        <Switch x:Name="ExtremeDebugSpeedSwitch" Scale="0.82" Toggled="OnExtremeDebugSpeedToggled" />
+                        <Label Text="Speed up" FontSize="13" VerticalOptions="Center" />
+                        <Switch x:Name="SpeedUpSwitch" Scale="0.82" Toggled="OnSpeedUpToggled" />
                     </HorizontalStackLayout>
 
                     <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">

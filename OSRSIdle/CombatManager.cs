@@ -378,7 +378,6 @@ public class CombatManager : IDisposable
         // snapshots are published less often to reduce main-thread work.
 
         const int NormalVisualUpdateMilliseconds = 100;
-        const int DebugVisualUpdateMilliseconds = 33;
         const int CombatUiUpdateMilliseconds = 200;
 
 
@@ -403,8 +402,8 @@ public class CombatManager : IDisposable
         {
             int speedMultiplier = GameClock.SpeedMultiplier;
             int visualUpdateMilliseconds =
-                GameClock.IsDebugSpeedEnabled
-                    ? DebugVisualUpdateMilliseconds
+                GameClock.IsSpeedUpEnabled
+                    ? GameClock.SpeedUpTickMilliseconds
                     : NormalVisualUpdateMilliseconds;
 
             try
