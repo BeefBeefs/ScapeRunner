@@ -99,10 +99,9 @@
 
                             <BoxView
                                 x:Name="PlayerMiniHPFill"
-                                HorizontalOptions="Fill"
+                                HorizontalOptions="Start"
                                 VerticalOptions="Fill"
-                                BackgroundColor="Green"
-                                AnchorX="0" />
+                                BackgroundColor="Green" />
 
                             <Label
                                 x:Name="PlayerMiniHPValueLabel"
@@ -142,10 +141,9 @@
 
                             <BoxView
                                 x:Name="EnemyMiniHPFill"
-                                HorizontalOptions="Fill"
+                                HorizontalOptions="Start"
                                 VerticalOptions="Fill"
-                                BackgroundColor="Green"
-                                AnchorX="0" />
+                                BackgroundColor="Green" />
 
                             <Label
                                 x:Name="EnemyMiniHPValueLabel"
@@ -196,10 +194,9 @@
 
                 <BoxView
                     x:Name="ActivityProgressFill"
-                    HorizontalOptions="Fill"
+                    HorizontalOptions="Start"
                     VerticalOptions="Fill"
-                    BackgroundColor="Red"
-                    AnchorX="0" />
+                    BackgroundColor="Red" />
 
                 <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
 
@@ -280,10 +277,9 @@
 
                     <BoxView
                         x:Name="CombatXPFill"
-                        HorizontalOptions="Fill"
+                        HorizontalOptions="Start"
                         VerticalOptions="Fill"
-                        BackgroundColor="Red"
-                        AnchorX="0" />
+                        BackgroundColor="Red" />
 
                     <Border Stroke="#D99032" StrokeThickness="1" InputTransparent="True" />
 

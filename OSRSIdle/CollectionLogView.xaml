@@ -94,6 +94,7 @@
                         Spacing="4">
 
                     <Border
+                        x:Name="EnemyDetailPortraitFrame"
                         WidthRequest="200"
                         HeightRequest="200"
                         MinimumWidthRequest="200"
@@ -138,8 +139,9 @@
                             x:Name="EnemyDetailTraitsLabel"
                             FontSize="12"
                             TextColor="#FFB347"
-                            HorizontalOptions="Center"
+                            HorizontalOptions="Fill"
                             HorizontalTextAlignment="Center"
+                            LineBreakMode="WordWrap"
                             IsVisible="False" />
 
                     <HorizontalStackLayout
@@ -165,10 +167,10 @@
 
                     <Label
                         x:Name="EnemyDetailCompletionLabel"
-                        Text="*Complete*"
+                        Text="*complete*"
                         FontSize="14"
                         FontAttributes="Bold"
-                        TextColor="Green"
+                        TextColor="#42A85A"
                         HorizontalOptions="Center"
                         IsVisible="False" />
 

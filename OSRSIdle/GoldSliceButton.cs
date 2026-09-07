@@ -32,7 +32,11 @@ public sealed class GoldSliceButton : ContentView
             typeof(GoldSliceButton),
             string.Empty,
             propertyChanged: (bindable, _, value) =>
-                ((GoldSliceButton)bindable)._label.Text = (string?)value ?? string.Empty);
+            {
+                GoldSliceButton button = (GoldSliceButton)bindable;
+                button._label.Text = (string?)value ?? string.Empty;
+                button.RefreshContentLayout();
+            });
 
     public static readonly BindableProperty TextColorProperty =
         BindableProperty.Create(
@@ -50,7 +54,11 @@ public sealed class GoldSliceButton : ContentView
             typeof(GoldSliceButton),
             14d,
             propertyChanged: (bindable, _, value) =>
-                ((GoldSliceButton)bindable)._label.FontSize = (double)value);
+            {
+                GoldSliceButton button = (GoldSliceButton)bindable;
+                button._label.FontSize = (double)value;
+                button.RefreshContentLayout();
+            });
 
     public static readonly BindableProperty FontAttributesProperty =
         BindableProperty.Create(
@@ -59,7 +67,11 @@ public sealed class GoldSliceButton : ContentView
             typeof(GoldSliceButton),
             FontAttributes.Bold,
             propertyChanged: (bindable, _, value) =>
-                ((GoldSliceButton)bindable)._label.FontAttributes = (FontAttributes)value);
+            {
+                GoldSliceButton button = (GoldSliceButton)bindable;
+                button._label.FontAttributes = (FontAttributes)value;
+                button.RefreshContentLayout();
+            });
 
     public static readonly BindableProperty IconSourceProperty =
         BindableProperty.Create(
@@ -85,6 +97,7 @@ public sealed class GoldSliceButton : ContentView
                 GoldSliceButton button = (GoldSliceButton)bindable;
                 button._icon.WidthRequest = (double)value;
                 button._icon.HeightRequest = (double)value;
+                button.RefreshContentLayout();
             });
 
     public static readonly BindableProperty CenterTextProperty =
@@ -196,6 +209,8 @@ public sealed class GoldSliceButton : ContentView
         {
             ColumnSpacing = 5,
             Padding = new Thickness(8, 0),
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
             InputTransparent = true
         };
 
@@ -249,31 +264,35 @@ public sealed class GoldSliceButton : ContentView
         double width = Math.Max(MinimumWidthRequest, Width);
         double height = Math.Max(SliceWidth, Height);
 
-        if (Math.Abs(width - _lastBuiltWidth) < 0.5 &&
-            Math.Abs(height - _lastBuiltHeight) < 0.5 &&
-            _lastBuiltVariant == Variant)
+        bool slicesChanged =
+            Math.Abs(width - _lastBuiltWidth) >= 0.5 ||
+            Math.Abs(height - _lastBuiltHeight) >= 0.5 ||
+            _lastBuiltVariant != Variant;
+
+        if (slicesChanged)
         {
-            return;
+            _lastBuiltWidth = width;
+            _lastBuiltHeight = height;
+            _lastBuiltVariant = Variant;
+
+            string assetPrefix = Variant switch
+            {
+                GoldSliceButtonVariant.Green => "button_green",
+                GoldSliceButtonVariant.Red => "button_red",
+                _ => "button_gold"
+            };
+
+            _leftSlice.Source = ImageSource.FromFile(
+                $"{assetPrefix}_left.png");
+            _middleSlice.Source = ImageSource.FromFile(
+                $"{assetPrefix}_middle.png");
+            _rightSlice.Source = ImageSource.FromFile(
+                $"{assetPrefix}_right.png");
         }
 
-        _lastBuiltWidth = width;
-        _lastBuiltHeight = height;
-        _lastBuiltVariant = Variant;
-
-        string assetPrefix = Variant switch
-        {
-            GoldSliceButtonVariant.Green => "button_green",
-            GoldSliceButtonVariant.Red => "button_red",
-            _ => "button_gold"
-        };
-
-        _leftSlice.Source = ImageSource.FromFile(
-            $"{assetPrefix}_left.png");
-        _middleSlice.Source = ImageSource.FromFile(
-            $"{assetPrefix}_middle.png");
-        _rightSlice.Source = ImageSource.FromFile(
-            $"{assetPrefix}_right.png");
-
+        // Reapply the bounds even when the artwork itself is cached. Dynamic
+        // text updates can trigger a measure/arrange pass without a size
+        // change, and the content layer must still fill the current button.
         AbsoluteLayout.SetLayoutBounds(
             _leftSlice,
             new Rect(0, 0, SliceWidth, height));
@@ -327,6 +346,17 @@ public sealed class GoldSliceButton : ContentView
             _label.HorizontalOptions = LayoutOptions.Fill;
             _label.HorizontalTextAlignment = TextAlignment.Center;
         }
+
+        _contentLayout.HorizontalOptions = LayoutOptions.Fill;
+        _contentLayout.VerticalOptions = LayoutOptions.Fill;
+        _label.VerticalOptions = LayoutOptions.Fill;
+    }
+
+    private void RefreshContentLayout()
+    {
+        UpdateContentLayout();
+        InvalidateMeasure();
+        BuildSlices();
     }
 
     private static Image CreateSlice()

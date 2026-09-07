@@ -1592,6 +1592,7 @@ public static partial class EnemyData
         AddSharedDrops();
         BalanceEquipmentDropRates();
         EnemyDescriptions.Apply(EnemyRegistry);
+        EnemyTraitRules.AssignRosterTraits(EnemyRegistry);
 
         // Publish a read-only snapshot after generated enemies and balanced
         // drop tables have been applied.

@@ -403,6 +403,7 @@ public partial class InventoryView : ContentView
     {
         UpdateInventoryCapacity();
         UpdateCombineAllEquipmentButton();
+        UpdateSellCategoryButtons();
         UpdateSellJunkButton();
 
     // --------------------------------------------------------
@@ -551,9 +552,7 @@ public partial class InventoryView : ContentView
     }
     private void UpdateSellJunkButton()
     {
-        int junkItemCount = _inventory.Items
-            .Where(entry => entry.Item.IsJunk)
-            .Sum(entry => entry.Quantity);
+        int junkItemCount = GetCategoryQuantity(InventoryCategory.Junk);
 
         SellJunkButton.Text = junkItemCount > 0
             ? $"Sell Junk ({junkItemCount:N0})"
@@ -563,6 +562,33 @@ public partial class InventoryView : ContentView
         SellJunkButton.IsVisible =
             _selectedCategory == InventoryCategory.Junk;
         BulkSellControls.IsVisible = SellJunkButton.IsVisible;
+    }
+
+    private void UpdateSellCategoryButtons()
+    {
+        int equipmentItemCount = GetCategoryQuantity(InventoryCategory.Equipment);
+        SellEquipmentButton.Text = equipmentItemCount > 0
+            ? $"Sell Equipment ({equipmentItemCount:N0})"
+            : "Sell Equipment";
+        SellEquipmentButton.IsEnabled = equipmentItemCount > 0;
+        SellEquipmentButton.IsVisible =
+            _selectedCategory == InventoryCategory.Equipment;
+
+        int foodItemCount = GetCategoryQuantity(InventoryCategory.Food);
+        SellFoodButton.Text = foodItemCount > 0
+            ? $"Sell Food ({foodItemCount:N0})"
+            : "Sell Food";
+        SellFoodButton.IsEnabled = foodItemCount > 0;
+        SellFoodButton.IsVisible =
+            _selectedCategory == InventoryCategory.Food;
+    }
+
+    private int GetCategoryQuantity(InventoryCategory category)
+    {
+        return _inventory.Items
+            .Where(entry => entry.Quantity > 0 &&
+                            IsInCategory(entry.Item, category))
+            .Sum(entry => entry.Quantity);
     }
 
     private void UpdateCombineAllEquipmentButton()
@@ -583,12 +609,41 @@ public partial class InventoryView : ContentView
 
     private bool IsInSelectedCategory(Item item)
     {
-        return _selectedCategory switch
+        return IsInCategory(item, _selectedCategory);
+    }
+
+    private static bool IsInCategory(
+        Item item,
+        InventoryCategory category)
+    {
+        return category switch
         {
             InventoryCategory.Equipment => item.Type == ItemType.Equipment,
             InventoryCategory.Food => item.Type == ItemType.Food,
             InventoryCategory.Junk => item.IsJunk,
             _ => false
+        };
+    }
+
+    private static string GetCategoryName(InventoryCategory category)
+    {
+        return category switch
+        {
+            InventoryCategory.Equipment => "Equipment",
+            InventoryCategory.Food => "Food",
+            InventoryCategory.Junk => "Junk",
+            _ => "Items"
+        };
+    }
+
+    private static string GetCategoryItemLabel(InventoryCategory category)
+    {
+        return category switch
+        {
+            InventoryCategory.Equipment => "equipment items",
+            InventoryCategory.Food => "food items",
+            InventoryCategory.Junk => "junk items",
+            _ => "items"
         };
     }
 
@@ -608,6 +663,20 @@ public partial class InventoryView : ContentView
         EventArgs e)
     {
         SellJunk(BulkSellMode.All);
+    }
+
+    private async void OnSellEquipmentClicked(
+        object? sender,
+        EventArgs e)
+    {
+        await ConfirmSellCategoryAsync(InventoryCategory.Equipment);
+    }
+
+    private async void OnSellFoodClicked(
+        object? sender,
+        EventArgs e)
+    {
+        await ConfirmSellCategoryAsync(InventoryCategory.Food);
     }
 
     private async void OnCombineAllEquipmentClicked(
@@ -659,6 +728,56 @@ public partial class InventoryView : ContentView
                 ItemData.Coins,
                 (int)Math.Min(totalGold, int.MaxValue));
         }
+    }
+
+    private async Task ConfirmSellCategoryAsync(InventoryCategory category)
+    {
+        List<InventoryItem> items = _inventory.Items
+            .Where(entry => entry.Quantity > 0 &&
+                            IsInCategory(entry.Item, category))
+            .ToList();
+
+        if (items.Count == 0)
+            return;
+
+        int itemCount = items.Sum(entry => entry.Quantity);
+        long totalGold = items.Sum(entry =>
+            (long)entry.Item.Value * entry.Quantity);
+        string categoryName = GetCategoryName(category);
+
+        string? action = await CustomDialogService.ShowAsync(
+            $"Sell All {categoryName}?",
+            $"Sell {itemCount:N0} {GetCategoryItemLabel(category)} " +
+            $"for {totalGold:N0} coins? This cannot be undone.",
+            "Cancel",
+            "Sell All");
+
+        if (action == "Sell All")
+            SellItems(items);
+    }
+
+    private void SellItems(IEnumerable<InventoryItem> items)
+    {
+        long totalGold = 0;
+
+        foreach (InventoryItem inventoryItem in items)
+        {
+            int quantity = inventoryItem.Quantity;
+            totalGold += (long)inventoryItem.Item.Value * quantity;
+            _inventory.RemoveItem(inventoryItem.Item, quantity);
+
+            if (_player.EquippedFood == inventoryItem.Item)
+                _player.ClearEquippedFood();
+        }
+
+        if (totalGold > 0)
+        {
+            _inventory.AddItem(
+                ItemData.Coins,
+                (int)Math.Min(totalGold, int.MaxValue));
+        }
+
+        UpdateInventory();
     }
 
 

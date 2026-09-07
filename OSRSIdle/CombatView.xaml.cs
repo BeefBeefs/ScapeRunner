@@ -672,7 +672,9 @@ public partial class CombatView : ContentView
         {
             FontSize = 11,
             TextColor = Color.FromArgb("#FFB347"),
-            HorizontalTextAlignment = TextAlignment.Center
+            HorizontalOptions = LayoutOptions.Fill,
+            HorizontalTextAlignment = TextAlignment.Center,
+            LineBreakMode = LineBreakMode.WordWrap
         };
         traitsLabel.FormattedText = BuildEnemyTraitsText(enemy);
 
@@ -1097,15 +1099,15 @@ public partial class CombatView : ContentView
         if (enemy.Traits.Count == 0)
             return result;
 
-        result.Spans.Add(new Span { Text = "Traits: ", TextColor = Colors.White });
+        result.Spans.Add(new Span { Text = "Traits:\n", TextColor = Colors.White });
         for (int index = 0; index < enemy.Traits.Count; index++)
         {
-            if (index > 0)
-                result.Spans.Add(new Span { Text = " • ", TextColor = Colors.White });
             EnemyTrait trait = enemy.Traits[index];
             result.Spans.Add(new Span
             {
-                Text = EnemyTraitRules.Name(trait),
+                Text = $"{EnemyTraitRules.Name(trait)}: " +
+                       EnemyTraitRules.Description(trait) +
+                       (index < enemy.Traits.Count - 1 ? "\n" : string.Empty),
                 TextColor = EnemyTraitRules.Color(trait)
             });
         }

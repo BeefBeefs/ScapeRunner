@@ -179,6 +179,24 @@
                 IsVisible="False" />
 
             <local:GoldSliceButton
+                x:Name="SellEquipmentButton"
+                Text="Sell Equipment"
+                FontSize="13"
+                Variant="Green"
+                TextColor="White"
+                Clicked="OnSellEquipmentClicked"
+                IsVisible="False" />
+
+            <local:GoldSliceButton
+                x:Name="SellFoodButton"
+                Text="Sell Food"
+                FontSize="13"
+                Variant="Green"
+                TextColor="White"
+                Clicked="OnSellFoodClicked"
+                IsVisible="False" />
+
+            <local:GoldSliceButton
                 x:Name="SellJunkButton"
                 Text="Sell Junk"
                 FontSize="13"

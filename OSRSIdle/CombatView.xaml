@@ -82,8 +82,9 @@
                             x:Name="EnemyTraitsLabel"
                             FontSize="12"
                             TextColor="#FFB347"
-                            HorizontalOptions="Center"
-                            HorizontalTextAlignment="Center" />
+                            HorizontalOptions="Fill"
+                            HorizontalTextAlignment="Center"
+                            LineBreakMode="WordWrap" />
 
                         <HorizontalStackLayout
                             Spacing="8"

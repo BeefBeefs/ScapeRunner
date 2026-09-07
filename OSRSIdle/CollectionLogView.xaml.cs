@@ -377,6 +377,9 @@ public partial class CollectionLogView : ContentView
         if (_selectedEnemy == enemy)
         {
             EnemyDetailCompletionLabel.IsVisible = complete;
+            EnemyDetailPortraitFrame.Stroke = complete
+                ? Color.FromArgb("#42A85A")
+                : Color.FromArgb("#D99032");
 
             EnemyStatsLabel.Text =
                 $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
@@ -405,8 +408,11 @@ public partial class CollectionLogView : ContentView
         EnemyDetailNameLabel.Text =
             enemy.Name;
 
-        EnemyDetailCompletionLabel.IsVisible =
-            _collectionLog.IsComplete(enemy);
+        bool complete = _collectionLog.IsComplete(enemy);
+        EnemyDetailCompletionLabel.IsVisible = complete;
+        EnemyDetailPortraitFrame.Stroke = complete
+            ? Color.FromArgb("#42A85A")
+            : Color.FromArgb("#D99032");
 
         EnemyDetailCombatLevelLabel.Text =
             $"lvl {enemy.CombatLevel}";
@@ -509,15 +515,15 @@ public partial class CollectionLogView : ContentView
         FormattedString result = new();
         if (enemy.Traits.Count == 0)
             return result;
-        result.Spans.Add(new Span { Text = "Traits: ", TextColor = Colors.White });
+        result.Spans.Add(new Span { Text = "Traits:\n", TextColor = Colors.White });
         for (int index = 0; index < enemy.Traits.Count; index++)
         {
-            if (index > 0)
-                result.Spans.Add(new Span { Text = " • ", TextColor = Colors.White });
             EnemyTrait trait = enemy.Traits[index];
             result.Spans.Add(new Span
             {
-                Text = EnemyTraitRules.Name(trait),
+                Text = $"{EnemyTraitRules.Name(trait)}: " +
+                       EnemyTraitRules.Description(trait) +
+                       (index < enemy.Traits.Count - 1 ? "\n" : string.Empty),
                 TextColor = EnemyTraitRules.Color(trait)
             });
         }

@@ -467,6 +467,7 @@ public partial class ActivityBar : ContentView, IDisposable
             Math.Clamp(progress, 0, 1);
 
         UpdateCustomProgressBar(
+            ActivityProgressBar,
             ActivityProgressFill,
             _activityProgress,
             alwaysGreen: true);
@@ -480,12 +481,14 @@ public partial class ActivityBar : ContentView, IDisposable
             Math.Clamp(progress, 0, 1);
 
         UpdateCustomProgressBar(
+            CombatXPBar,
             CombatXPFill,
             _combatXPProgress);
     }
 
 
     private static void UpdateCustomProgressBar(
+        Grid progressBar,
         BoxView progressFill,
         double progress,
         bool alwaysGreen = false)
@@ -502,8 +505,9 @@ public partial class ActivityBar : ContentView, IDisposable
         if (!Equals(progressFill.BackgroundColor, fillColor))
             progressFill.BackgroundColor = fillColor;
 
-        if (Math.Abs(progressFill.ScaleX - progress) > 0.001)
-            progressFill.ScaleX = progress;
+        double fillWidth = Math.Max(0, progressBar.Width * progress);
+        if (Math.Abs(progressFill.WidthRequest - fillWidth) > 0.5)
+            progressFill.WidthRequest = fillWidth;
     }
 
     private void UpdateCombatMiniHPBars()
@@ -546,10 +550,12 @@ public partial class ActivityBar : ContentView, IDisposable
             EnemyMiniHPValueLabel.Text = enemyHP;
 
         UpdateCustomProgressBar(
+            PlayerMiniHPBar,
             PlayerMiniHPFill,
             playerProgress);
 
         UpdateCustomProgressBar(
+            EnemyMiniHPBar,
             EnemyMiniHPFill,
             enemyProgress);
     }

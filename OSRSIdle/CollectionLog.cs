@@ -2,6 +2,8 @@ namespace OSRSIdle;
 
 public class CollectionLog
 {
+    private readonly object _stateLock = new();
+
     private readonly Dictionary<Enemy, int> _obtainedDropCounts = new();
     private int? _completedEnemyCount;
     private readonly Dictionary<Enemy, HashSet<Item>> _receivedDrops =
@@ -38,15 +40,18 @@ public class CollectionLog
         if (count <= 0)
             return;
 
-        _killCounts.TryGetValue(enemy, out int currentCount);
-        int updatedCount = currentCount + (int)Math.Min(
-            count,
-            int.MaxValue - (long)currentCount);
+        lock (_stateLock)
+        {
+            _killCounts.TryGetValue(enemy, out int currentCount);
+            int updatedCount = currentCount + (int)Math.Min(
+                count,
+                int.MaxValue - (long)currentCount);
 
-        if (updatedCount == currentCount)
-            return;
+            if (updatedCount == currentCount)
+                return;
 
-        _killCounts[enemy] = updatedCount;
+            _killCounts[enemy] = updatedCount;
+        }
 
         KillCountChanged?.Invoke(enemy);
         CollectionChanged?.Invoke();
@@ -54,57 +59,78 @@ public class CollectionLog
 
     public int GetKillCount(Enemy enemy)
     {
-        return _killCounts.TryGetValue(enemy, out int killCount)
-            ? killCount
-            : 0;
+        lock (_stateLock)
+        {
+            return _killCounts.TryGetValue(enemy, out int killCount)
+                ? killCount
+                : 0;
+        }
     }
 
     public int GetTotalKillCount()
     {
-        return _killCounts.Values.Sum();
+        lock (_stateLock)
+            return _killCounts.Values.Sum();
     }
 
     public int GetCompletedEnemyCount()
     {
-        if (_completedEnemyCount is int cachedCount)
-            return cachedCount;
+        lock (_stateLock)
+        {
+            if (_completedEnemyCount is int cachedCount)
+                return cachedCount;
 
-        IReadOnlyList<Enemy> enemies = StartupDataCache.IsInitialized
-            ? StartupDataCache.Enemies
-            : EnemyData.AllEnemies;
+            IReadOnlyList<Enemy> enemies = StartupDataCache.IsInitialized
+                ? StartupDataCache.Enemies
+                : EnemyData.AllEnemies;
 
-        int count = enemies.Count(IsComplete);
-        _completedEnemyCount = count;
-        return count;
+            int count = enemies.Count(IsCompleteCore);
+            _completedEnemyCount = count;
+            return count;
+        }
     }
 
     public void RecordDrops(
         Enemy enemy,
         IEnumerable<LootResult> loot)
     {
-        bool wasComplete = IsComplete(enemy);
-        bool changed =
-            false;
+        List<Item>? discoveredItems = null;
+        bool completed;
+        bool changed;
 
-        foreach (LootResult lootResult in loot)
+        lock (_stateLock)
         {
-            if (RecordDrop(
-                    enemy,
-                    lootResult.Item,
-                    notify: false))
+            bool wasComplete = IsCompleteCore(enemy);
+            changed = false;
+
+            foreach (LootResult lootResult in loot)
             {
-                changed =
-                    true;
+                if (!RecordDropCore(enemy, lootResult.Item))
+                    continue;
+
+                changed = true;
+                (discoveredItems ??= new List<Item>())
+                    .Add(lootResult.Item);
             }
+
+            completed = changed &&
+                !wasComplete &&
+                IsCompleteCore(enemy);
         }
 
-        if (changed)
+        if (!changed)
+            return;
+
+        if (discoveredItems != null)
         {
-            CollectionChanged?.Invoke();
-
-            if (!wasComplete && IsComplete(enemy))
-                CollectionCompleted?.Invoke(enemy);
+            foreach (Item item in discoveredItems)
+                DropDiscovered?.Invoke(item);
         }
+
+        CollectionChanged?.Invoke();
+
+        if (completed)
+            CollectionCompleted?.Invoke(enemy);
     }
 
     public bool HasReceivedDrop(
@@ -112,46 +138,46 @@ public class CollectionLog
         Item item)
     {
         _ = enemy;
-        return _receivedItems.Contains(item);
+        lock (_stateLock)
+            return _receivedItems.Contains(item);
     }
 
     internal bool HasRecordedDrop(Enemy enemy, Item item)
     {
-        return _receivedDrops.TryGetValue(
-            enemy,
-            out HashSet<Item>? receivedDrops) &&
-            receivedDrops.Contains(item);
+        lock (_stateLock)
+        {
+            return _receivedDrops.TryGetValue(
+                enemy,
+                out HashSet<Item>? receivedDrops) &&
+                receivedDrops.Contains(item);
+        }
     }
 
     public void RecordSkillingPet(
         Item pet)
     {
-        if (_receivedSkillingPets.Add(pet))
+        lock (_stateLock)
         {
-            SkillingPetDiscovered?.Invoke(pet);
-            CollectionChanged?.Invoke();
+            if (!_receivedSkillingPets.Add(pet))
+                return;
         }
+
+        SkillingPetDiscovered?.Invoke(pet);
+        CollectionChanged?.Invoke();
     }
 
     public bool HasReceivedSkillingPet(
         Item pet)
     {
-        return _receivedSkillingPets.Contains(pet);
+        lock (_stateLock)
+            return _receivedSkillingPets.Contains(pet);
     }
 
     public int GetObtainedDropCount(
         Enemy enemy)
     {
-        if (_obtainedDropCounts.TryGetValue(enemy, out int count))
-            return count;
-
-        count = 0;
-        foreach (Item item in StartupDataCache.GetCollectionItems(enemy))
-            if (_receivedItems.Contains(item))
-                count++;
-
-        _obtainedDropCounts[enemy] = count;
-        return count;
+        lock (_stateLock)
+            return GetObtainedDropCountCore(enemy);
     }
 
     public int GetDropCount(
@@ -163,83 +189,81 @@ public class CollectionLog
     public bool IsComplete(
         Enemy enemy)
     {
-        int dropCount =
-            GetDropCount(enemy);
-
-        return dropCount > 0 &&
-            GetObtainedDropCount(enemy) == dropCount;
+        lock (_stateLock)
+            return IsCompleteCore(enemy);
     }
 
     public CollectionLogSaveData CreateSaveData()
     {
-        return new CollectionLogSaveData
+        lock (_stateLock)
         {
-            KillCounts = _killCounts.ToDictionary(
-                entry => entry.Key.Name,
-                entry => entry.Value),
-            ReceivedDrops = _receivedDrops.ToDictionary(
-                entry => entry.Key.Name,
-                entry => entry.Value.Select(item => item.Name).ToList()),
-            SkillingPets = _receivedSkillingPets
-                .Select(item => item.Name)
-                .ToList()
-        };
+            return new CollectionLogSaveData
+            {
+                KillCounts = _killCounts.ToDictionary(
+                    entry => entry.Key.Name,
+                    entry => entry.Value),
+                ReceivedDrops = _receivedDrops.ToDictionary(
+                    entry => entry.Key.Name,
+                    entry => entry.Value.Select(item => item.Name).ToList()),
+                SkillingPets = _receivedSkillingPets
+                    .Select(item => item.Name)
+                    .ToList()
+            };
+        }
     }
 
     public void RestoreSaveData(CollectionLogSaveData data)
     {
-        InvalidateCompletionCache();
-        _killCounts.Clear();
-        _receivedDrops.Clear();
-        _receivedItems.Clear();
-        _receivedSkillingPets.Clear();
-
-        foreach ((string enemyName, int killCount) in data.KillCounts)
+        lock (_stateLock)
         {
-            Enemy? enemy = StartupDataCache.FindEnemy(enemyName);
+            InvalidateCompletionCache();
+            _killCounts.Clear();
+            _receivedDrops.Clear();
+            _receivedItems.Clear();
+            _receivedSkillingPets.Clear();
 
-            if (enemy != null && killCount > 0)
+            foreach ((string enemyName, int killCount) in data.KillCounts)
             {
-                _killCounts[enemy] = killCount;
+                Enemy? enemy = StartupDataCache.FindEnemy(enemyName);
+
+                if (enemy != null && killCount > 0)
+                    _killCounts[enemy] = killCount;
             }
-        }
 
-        foreach ((string enemyName, List<string> itemNames) in data.ReceivedDrops)
-        {
-            Enemy? enemy = StartupDataCache.FindEnemy(enemyName);
-
-            if (enemy == null)
-                continue;
-
-            HashSet<Item> drops = itemNames
-                .Select(FindItem)
-                .OfType<Item>()
-                .ToHashSet();
-
-            if (drops.Count > 0)
+            foreach ((string enemyName, List<string> itemNames) in data.ReceivedDrops)
             {
-                _receivedDrops[enemy] = drops;
-                _receivedItems.UnionWith(drops);
+                Enemy? enemy = StartupDataCache.FindEnemy(enemyName);
+
+                if (enemy == null)
+                    continue;
+
+                HashSet<Item> drops = itemNames
+                    .Select(FindItem)
+                    .OfType<Item>()
+                    .ToHashSet();
+
+                if (drops.Count > 0)
+                {
+                    _receivedDrops[enemy] = drops;
+                    _receivedItems.UnionWith(drops);
+                }
             }
-        }
 
-        foreach (string itemName in data.SkillingPets)
-        {
-            Item? pet = FindItem(itemName);
-
-            if (pet != null)
+            foreach (string itemName in data.SkillingPets)
             {
-                _receivedSkillingPets.Add(pet);
+                Item? pet = FindItem(itemName);
+
+                if (pet != null)
+                    _receivedSkillingPets.Add(pet);
             }
         }
 
         CollectionChanged?.Invoke();
     }
 
-    private bool RecordDrop(
+    private bool RecordDropCore(
         Enemy enemy,
-        Item item,
-        bool notify)
+        Item item)
     {
         if (!_receivedDrops.TryGetValue(
                 enemy,
@@ -262,18 +286,29 @@ public class CollectionLog
         if (added)
             InvalidateCompletionCache();
 
-        if (added && notify)
-        {
-            DropDiscovered?.Invoke(item);
-            CollectionChanged?.Invoke();
-        }
-
-        else if (added)
-        {
-            DropDiscovered?.Invoke(item);
-        }
-
         return added;
+    }
+
+    private int GetObtainedDropCountCore(Enemy enemy)
+    {
+        if (_obtainedDropCounts.TryGetValue(enemy, out int count))
+            return count;
+
+        count = 0;
+        foreach (Item item in StartupDataCache.GetCollectionItems(enemy))
+            if (_receivedItems.Contains(item))
+                count++;
+
+        _obtainedDropCounts[enemy] = count;
+        return count;
+    }
+
+    private bool IsCompleteCore(Enemy enemy)
+    {
+        int dropCount = GetDropCount(enemy);
+
+        return dropCount > 0 &&
+            GetObtainedDropCountCore(enemy) == dropCount;
     }
 
     private static Item? FindItem(string itemName)

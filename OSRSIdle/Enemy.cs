@@ -82,6 +82,11 @@ public class Enemy
 
     public int CurrentHP { get; set; }
 
+    // Static roster data assigns an explicit trait profile during startup.
+    // A null value is retained for ad-hoc enemies created by tests or tools,
+    // which continue to use the stat-based fallback in EnemyTraitRules.
+    internal IReadOnlyList<EnemyTrait>? TraitOverride { get; set; }
+
 
     // ============================================================
     // DROP TABLE
