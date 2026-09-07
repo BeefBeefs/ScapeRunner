@@ -4,14 +4,28 @@ on:
   push:
     branches:
       - main
+    paths:
+      - OSRSIdle/**
+      - tools/PerformanceSmokeTests.cs
+      - global.json
+      - NuGet.config
+      - Directory.Build.*
+      - Directory.Packages.props
+      - .github/workflows/android-apk.yml
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
     steps:
       - name: Check out source
@@ -20,7 +34,7 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.400
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -28,20 +42,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android workload
-        shell: pwsh
-        run: dotnet workload install maui-android
-
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('OSRSIdle/OSRSIdle.csproj') }}
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('global.json', 'OSRSIdle/OSRSIdle.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore packages
-        run: dotnet restore OSRSIdle/OSRSIdle.csproj
+        run: dotnet restore OSRSIdle/OSRSIdle.csproj --property:TargetFrameworks=net10.0-android
 
       - name: Prepare signing key
         shell: pwsh
@@ -84,7 +94,8 @@ jobs:
             --configuration Release `
             --framework net10.0-android `
             --no-restore `
-            --property:AndroidPackageFormat=apk `
+            --property:TargetFrameworks=net10.0-android `
+            --property:AndroidPackageFormats=apk `
             --property:AndroidKeyStore=true `
             --property:AndroidSigningKeyStore="$env:ANDROID_KEYSTORE_PATH" `
             --property:AndroidSigningStoreType=pkcs12 `
@@ -100,13 +111,6 @@ jobs:
           if (-not $apk) { throw 'Signed APK was not produced.' }
           "path=$($apk.FullName)" >> $env:GITHUB_OUTPUT
           "name=ScapeRunner-test-${env:GITHUB_RUN_NUMBER}.apk" >> $env:GITHUB_OUTPUT
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ScapeRunner-test-${{ github.run_number }}
-          path: ${{ steps.apk.outputs.path }}
-          retention-days: 30
 
       - name: Create downloadable GitHub release
         shell: pwsh
