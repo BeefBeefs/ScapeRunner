@@ -150,7 +150,24 @@ public static class LabelShadow
             if (_wrapper == null || _shadow == null)
                 return;
 
-            SyncLabelProperties();
+            // Text counters and animations change frequently. Updating one
+            // property must not clone every formatted span and resync layout.
+            switch (e.PropertyName)
+            {
+                case nameof(Label.Text): _shadow.Text = _label.Text; break;
+                case nameof(Label.TextColor): break; // Shadow stays black.
+                case nameof(Label.Opacity): _shadow.Opacity = _label.Opacity; break;
+                case nameof(Label.TranslationX): _shadow.TranslationX = _label.TranslationX + 1; break;
+                case nameof(Label.TranslationY): _shadow.TranslationY = _label.TranslationY + 1; break;
+                case nameof(Label.Scale): _shadow.Scale = _label.Scale; break;
+                case nameof(Label.ScaleX): _shadow.ScaleX = _label.ScaleX; break;
+                case nameof(Label.ScaleY): _shadow.ScaleY = _label.ScaleY; break;
+                case nameof(Label.Rotation): _shadow.Rotation = _label.Rotation; break;
+                case nameof(Label.IsVisible):
+                    _wrapper.IsVisible = _shadow.IsVisible = _label.IsVisible;
+                    break;
+                default: SyncLabelProperties(); break;
+            }
         }
 
         private Grid CreateWrapper() =>
@@ -222,6 +239,8 @@ public static class LabelShadow
             _shadow.TranslationX = _label.TranslationX + 1;
             _shadow.TranslationY = _label.TranslationY + 1;
             _shadow.Scale = _label.Scale;
+            _shadow.ScaleX = _label.ScaleX;
+            _shadow.ScaleY = _label.ScaleY;
             _shadow.Rotation = _label.Rotation;
             _shadow.RotationX = _label.RotationX;
             _shadow.RotationY = _label.RotationY;

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
+		<DefineConstants Condition="'$(PerformanceSmokeTests)' == 'true'">$(DefineConstants);PERFORMANCE_SMOKE_TESTS</DefineConstants>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
@@ -59,6 +60,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Include="..\tools\PerformanceSmokeTests.cs" Condition="'$(PerformanceSmokeTests)' == 'true'" />
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\icon.png" BaseSize="456,456" />
 

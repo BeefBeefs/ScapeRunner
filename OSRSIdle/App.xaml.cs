@@ -38,13 +38,16 @@ public partial class App : Application
     {
         await StartupDataCache.InitializeAsync(progress);
 
+#if PERFORMANCE_SMOKE_TESTS
+        // Opt-in diagnostic builds exercise isolated players, never user saves.
+        if (await PerformanceSmokeTests.RunAsync(Windows[0]))
+            return;
+#endif
+
         Window? window = Windows.FirstOrDefault();
-        if (window?.Page is StartupLoadingPage startupLoadingPage)
-        {
-            await startupLoadingPage.WarmCombatImagesAsync(
-                StartupDataCache.Enemies,
-                progress);
-        }
+        // Decode assets at their actual display size as screens open. Hidden
+        // 1px warmup controls flood the native loader without warming the
+        // correctly sized bitmap, and retain every enemy image during startup.
 
         progress.Report(new StartupProgress(0.985, "Preparing character profile"));
         Game ??= new Game();

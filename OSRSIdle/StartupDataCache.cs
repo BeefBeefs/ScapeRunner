@@ -29,6 +29,8 @@ public static class StartupDataCache
         new Dictionary<Item, IReadOnlyList<Enemy>>();
     public static IReadOnlyDictionary<Item, DropRarity> MaxDropRarityByItem { get; private set; } =
         new Dictionary<Item, DropRarity>();
+    public static IReadOnlyDictionary<string, DropRarity> MaxDropRarityByBaseName { get; private set; } =
+        new Dictionary<string, DropRarity>();
     public static IReadOnlyDictionary<string, IReadOnlyList<SkillActivity>> SkillActivitiesByName { get; private set; } =
         new Dictionary<string, IReadOnlyList<SkillActivity>>();
     public static int TotalCollectionSlots { get; private set; }
@@ -176,6 +178,11 @@ public static class StartupDataCache
                 .ToDictionary(
                     group => group.Key,
                     group => group.Max(drop => drop.Rarity)));
+            MaxDropRarityByBaseName = new ReadOnlyDictionary<string, DropRarity>(Enemies
+                .SelectMany(enemy => enemy.DropTable.Drops)
+                .GroupBy(drop => RarityVisuals.GetBaseName(drop.Item.Name), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Max(drop => drop.Rarity),
+                    StringComparer.Ordinal));
             TotalCollectionSlots = CollectionItemsByEnemy.Values.Sum(items => items.Count) +
                 SkillingPetData.AllPets.Count;
 
@@ -204,10 +211,11 @@ public static class StartupDataCache
                 _ = enemy.IconImage;
                 _ = enemy.LargeIconImage;
             }
+
+            progress.Report(new StartupProgress(0.96, "Validating game data"));
+            ValidateGameData();
         });
 
-        progress.Report(new StartupProgress(0.96, "Validating game data"));
-        ValidateGameData();
         IsInitialized = true;
         progress.Report(new StartupProgress(1.0, "Game data ready"));
     }

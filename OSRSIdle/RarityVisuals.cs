@@ -91,20 +91,29 @@ public static class RarityVisuals
             return cachedRarity;
         }
 
-        return (StartupDataCache.IsInitialized
-                ? StartupDataCache.Enemies
-                : EnemyData.AllEnemies)
+        return GetBaseRarity(item);
+    }
+
+    public static DropRarity GetBaseRarity(Item item)
+    {
+        string baseName = GetBaseName(item.Name);
+        if (StartupDataCache.IsInitialized)
+            return StartupDataCache.MaxDropRarityByBaseName.TryGetValue(baseName, out DropRarity rarity)
+                ? rarity
+                : DropRarity.Common;
+
+        return EnemyData.AllEnemies
             .SelectMany(enemy => enemy.DropTable.Drops)
             .Where(drop => string.Equals(
                 GetBaseName(drop.Item.Name),
-                GetBaseName(item.Name),
+                baseName,
                 StringComparison.Ordinal))
             .Select(drop => drop.Rarity)
             .DefaultIfEmpty(DropRarity.Common)
             .Max();
     }
 
-    private static string GetBaseName(string itemName)
+    internal static string GetBaseName(string itemName)
     {
         int marker = itemName.LastIndexOf(" +", StringComparison.Ordinal);
         return marker >= 0 && int.TryParse(itemName[(marker + 2)..], out _)

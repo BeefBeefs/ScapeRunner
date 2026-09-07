@@ -282,6 +282,14 @@ public partial class SkillPage : ContentView
 
     private void UpdateActivityButtons()
     {
+        SkillActivity[] unlockedActivities = _skill.Activities
+            .Where(candidate => _skill.Level >= candidate.RequiredLevel).ToArray();
+        SkillActivity? bestXp = unlockedActivities
+            .OrderByDescending(ActivityMetrics.XpPerHour).FirstOrDefault();
+        SkillActivity? fastest = unlockedActivities
+            .OrderBy(ActivityMetrics.EffectiveActionTicks)
+            .ThenByDescending(ActivityMetrics.XpPerHour).FirstOrDefault();
+
         foreach ((SkillActivity activity, GoldSliceButton button) in _activityButtons)
         {
             bool meetsRequiredLevel = _skill.Level >= activity.RequiredLevel;
@@ -297,7 +305,7 @@ public partial class SkillPage : ContentView
             {
                 bool unlocked = _skill.Level >= activity.RequiredLevel;
                 bool newlyUnlocked = unlocked && !card.WasUnlocked;
-                UpdateActivityMetrics(card, unlocked);
+                UpdateActivityMetrics(card, unlocked, bestXp, fastest);
 
                 bool isTraining = _activityManager.CurrentActivity == activity;
                 card.Panel.BackgroundColor = isTraining
@@ -322,7 +330,8 @@ public partial class SkillPage : ContentView
         }
     }
 
-    private void UpdateActivityMetrics(ActivityCardUI card, bool unlocked)
+    private void UpdateActivityMetrics(ActivityCardUI card, bool unlocked,
+        SkillActivity? bestXp, SkillActivity? fastest)
     {
         SkillActivity activity = card.Activity;
         card.EfficiencyLabel.Text =
@@ -335,19 +344,12 @@ public partial class SkillPage : ContentView
             card.EfficiencyLabel.Text += $"  •  {bonus}";
 
         List<string> badges = new();
-        if (unlocked && _skill.Activities
-                .Where(candidate => _skill.Level >= candidate.RequiredLevel)
-                .OrderByDescending(ActivityMetrics.XpPerHour)
-                .FirstOrDefault() == activity)
+        if (unlocked && bestXp == activity)
         {
             badges.Add("★ BEST XP/HR");
         }
 
-        if (unlocked && _skill.Activities
-                .Where(candidate => _skill.Level >= candidate.RequiredLevel)
-                .OrderBy(ActivityMetrics.EffectiveActionTicks)
-                .ThenByDescending(ActivityMetrics.XpPerHour)
-                .FirstOrDefault() == activity)
+        if (unlocked && fastest == activity)
         {
             badges.Add("⚡ FASTEST");
         }
@@ -362,13 +364,9 @@ public partial class SkillPage : ContentView
             return;
         }
 
-        SkillActivity? reference = _skill.Activities
-            .Where(candidate => _skill.Level >= candidate.RequiredLevel)
-            .OrderByDescending(ActivityMetrics.XpPerHour)
-            .FirstOrDefault();
-        double xpPerHour = reference == null
+        double xpPerHour = bestXp == null
             ? 0
-            : ActivityMetrics.XpPerHour(reference);
+            : ActivityMetrics.XpPerHour(bestXp);
         double xpNeeded = Math.Max(
             0,
             ExperienceTable.GetXPForLevel(activity.RequiredLevel) - _skill.XP);
@@ -419,7 +417,9 @@ public partial class SkillPage : ContentView
         fill = new BoxView
         {
             BackgroundColor = Color.FromArgb("#42A85A"),
-            HorizontalOptions = LayoutOptions.Start,
+            HorizontalOptions = LayoutOptions.Fill,
+            AnchorX = 0,
+            ScaleX = 0,
             VerticalOptions = LayoutOptions.Fill
         };
         track.Children.Add(fill);
@@ -475,7 +475,7 @@ public partial class SkillPage : ContentView
         TimeSpan duration = _activityManager.ActionEnds - _activityManager.ActionStarted;
         if (duration <= TimeSpan.Zero || card.TrainingTrack.Width <= 0)
         {
-            card.TrainingFill.WidthRequest = 0;
+            card.TrainingFill.ScaleX = 0;
             return;
         }
 
@@ -484,11 +484,15 @@ public partial class SkillPage : ContentView
             duration.TotalMilliseconds,
             0,
             1);
-        card.TrainingFill.WidthRequest = card.TrainingTrack.Width * progress;
+        if (Math.Abs(card.TrainingFill.ScaleX - progress) > 0.001)
+            card.TrainingFill.ScaleX = progress;
     }
 
     private static async Task PlayActionCompleteFeedbackAsync(ActivityCardUI card)
     {
+        if (card.FeedbackPlaying)
+            return;
+        card.FeedbackPlaying = true;
         try
         {
             Brush? originalStroke = card.Panel.Stroke;
@@ -515,6 +519,10 @@ public partial class SkillPage : ContentView
         catch
         {
             card.Panel.Scale = 1;
+        }
+        finally
+        {
+            card.FeedbackPlaying = false;
         }
     }
 
@@ -578,6 +586,7 @@ public partial class SkillPage : ContentView
     {
         public required Border Panel { get; init; }
         public required Border TrainingProgress { get; init; }
+        public bool FeedbackPlaying { get; set; }
         public required Grid TrainingTrack { get; init; }
         public required BoxView TrainingFill { get; init; }
         public Label? RewardLabel { get; init; }

@@ -49,6 +49,18 @@ public partial class InventoryView : ContentView
 
     private bool _sortAscending = true;
     private bool _isActive;
+    private bool _refreshPending;
+    private readonly Dictionary<InventoryItem, InventorySlot> _slots = new();
+    private readonly Grid _emptyCategoryHost = new();
+    private readonly Label _emptyCategoryLabel = new()
+    {
+        TextColor = Color.FromArgb("#C8C8C8"),
+        FontSize = 15,
+        HorizontalOptions = LayoutOptions.Center,
+        Margin = new Thickness(0, 20)
+    };
+
+    private sealed record InventorySlot(Border Card, Label Quantity);
 
 
     // ============================================================
@@ -64,6 +76,9 @@ public partial class InventoryView : ContentView
 
         _inventory =
             player.Inventory;
+        // Labels acquire a shadow wrapper when parented. Retain an explicit
+        // host so removal/reinsertion operates on the actual grid child.
+        _emptyCategoryHost.Children.Add(_emptyCategoryLabel);
 
 
         // --------------------------------------------------------
@@ -88,11 +103,14 @@ public partial class InventoryView : ContentView
 
     private void OnInventoryChanged()
     {
-        if (!_isActive)
+        if (!_isActive || _refreshPending)
             return;
 
-        MainThread.BeginInvokeOnMainThread(() =>
+        _refreshPending = true;
+        // Bulk sales, combining and loot can emit many events in one action.
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(50), () =>
         {
+            _refreshPending = false;
             if (_isActive)
                 UpdateInventory();
         });
@@ -387,9 +405,6 @@ public partial class InventoryView : ContentView
         UpdateCombineAllEquipmentButton();
         UpdateSellJunkButton();
 
-        InventoryGrid.Children.Clear();
-        InventoryGrid.RowDefinitions.Clear();
-
     // --------------------------------------------------------
     // Get every item currently in the inventory.
     // --------------------------------------------------------
@@ -482,73 +497,58 @@ public partial class InventoryView : ContentView
         // etc...
         // --------------------------------------------------------
 
+        // Retain native image handlers and gestures when only quantities or
+        // sort positions change. Remove slots that leave the current category.
+        HashSet<InventoryItem> visibleItems = sortedItems.ToHashSet();
+        foreach (InventoryItem entry in _slots.Keys.ToArray())
+        {
+            if (visibleItems.Contains(entry))
+                continue;
+            InventoryGrid.Children.Remove(_slots[entry].Card);
+            _slots.Remove(entry);
+        }
+
+        int rowCount = Math.Max(1, (sortedItems.Count + Columns - 1) / Columns);
+        while (InventoryGrid.RowDefinitions.Count > rowCount)
+            InventoryGrid.RowDefinitions.RemoveAt(InventoryGrid.RowDefinitions.Count - 1);
+        while (InventoryGrid.RowDefinitions.Count < rowCount)
+            InventoryGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
         if (sortedItems.Count == 0)
         {
-            Label emptyCategoryLabel = new Label
+            _emptyCategoryLabel.Text = GetEmptyCategoryText();
+            if (!InventoryGrid.Children.Contains(_emptyCategoryHost))
             {
-                Text = GetEmptyCategoryText(),
-                TextColor = Color.FromArgb("#C8C8C8"),
-                FontSize = 15,
-                HorizontalOptions = LayoutOptions.Center,
-                Margin = new Thickness(0, 20)
-            };
-
-            InventoryGrid.Add(emptyCategoryLabel, 0, 0);
-            InventoryGrid.SetColumnSpan(emptyCategoryLabel, Columns);
+                InventoryGrid.Add(_emptyCategoryHost, 0, 0);
+                InventoryGrid.SetColumnSpan(_emptyCategoryHost, Columns);
+            }
             return;
         }
 
-        int rowCount =
-            (int)Math.Ceiling(
-                sortedItems.Count /
-                (double)Columns);
-
-
-        // --------------------------------------------------------
-        // Create the required rows.
-        // --------------------------------------------------------
-
-        for (int row = 0;
-             row < rowCount;
-             row++)
+        InventoryGrid.Children.Remove(_emptyCategoryHost);
+        for (int index = 0; index < sortedItems.Count; index++)
         {
-            InventoryGrid.RowDefinitions.Add(
-                new RowDefinition
-                {
-                    Height =
-                        GridLength.Auto
-                });
-        }
+            InventoryItem entry = sortedItems[index];
+            if (!_slots.TryGetValue(entry, out InventorySlot? slot))
+            {
+                slot = CreateItemSlot(entry);
+                _slots.Add(entry, slot);
+                InventoryGrid.Add(slot.Card, index % Columns, index / Columns);
+            }
+            else
+            {
+                InventoryGrid.SetColumn(slot.Card, index % Columns);
+                InventoryGrid.SetRow(slot.Card, index / Columns);
+            }
 
-
-        // --------------------------------------------------------
-        // Add every item.
-        // --------------------------------------------------------
-
-        for (int index = 0;
-             index < sortedItems.Count;
-             index++)
-        {
-            int row =
-                index / Columns;
-
-            int column =
-                index % Columns;
-
-
-            Border itemSlot =
-                CreateItemSlot(
-                    sortedItems[index]);
-
-
-            InventoryGrid.Add(
-                itemSlot,
-                column,
-                row);
-
+            string quantity = $"×{entry.Quantity}";
+            if (slot.Quantity.Text != quantity)
+                slot.Quantity.Text = quantity;
+            Color background = GetSlotBackground(entry.Item);
+            if (!Equals(slot.Card.BackgroundColor, background))
+                slot.Card.BackgroundColor = background;
         }
     }
-
     private void UpdateSellJunkButton()
     {
         int junkItemCount = _inventory.Items
@@ -666,7 +666,7 @@ public partial class InventoryView : ContentView
     // CREATE ITEM SLOT
     // ============================================================
 
-    private Border CreateItemSlot(
+    private InventorySlot CreateItemSlot(
         InventoryItem inventoryItem)
     {
         Grid slotContent =
@@ -715,13 +715,6 @@ public partial class InventoryView : ContentView
         // Item slot.
         // --------------------------------------------------------
 
-        bool isLockedEquipment =
-            inventoryItem.Item.Type == ItemType.Equipment &&
-            !_player.MeetsEquipmentRequirement(inventoryItem.Item);
-
-        bool isEquippedFood =
-            inventoryItem.Item == _player.EquippedFood;
-
         Border itemSlot =
             new Border
             {
@@ -729,11 +722,7 @@ public partial class InventoryView : ContentView
                 WidthRequest = 60,
                 HeightRequest = 60,
                 Padding = 0,
-                BackgroundColor = isLockedEquipment
-                    ? Color.FromArgb("#5A1E1E")
-                    : isEquippedFood
-                        ? Color.FromArgb("#2D7D46")
-                        : Color.FromArgb("#4A4A4A"),
+                BackgroundColor = GetSlotBackground(inventoryItem.Item),
                 Stroke = GetItemStrokeColor(inventoryItem.Item),
                 StrokeThickness = 2,
                 VerticalOptions = LayoutOptions.Start
@@ -760,8 +749,15 @@ public partial class InventoryView : ContentView
             tapGesture);
 
 
-        return itemSlot;
+        return new InventorySlot(itemSlot, quantityLabel);
     }
+
+    private Color GetSlotBackground(Item item) =>
+        item.Type == ItemType.Equipment && !_player.MeetsEquipmentRequirement(item)
+            ? Color.FromArgb("#5A1E1E")
+            : item == _player.EquippedFood
+                ? Color.FromArgb("#2D7D46")
+                : Color.FromArgb("#4A4A4A");
 
     private static Color GetItemStrokeColor(Item item)
     {

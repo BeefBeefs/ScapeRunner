@@ -2,6 +2,8 @@ namespace OSRSIdle;
 
 public class CollectionLog
 {
+    private readonly Dictionary<Enemy, int> _obtainedDropCounts = new();
+    private int? _completedEnemyCount;
     private readonly Dictionary<Enemy, HashSet<Item>> _receivedDrops =
         new();
 
@@ -50,11 +52,16 @@ public class CollectionLog
 
     public int GetCompletedEnemyCount()
     {
+        if (_completedEnemyCount is int cachedCount)
+            return cachedCount;
+
         IReadOnlyList<Enemy> enemies = StartupDataCache.IsInitialized
             ? StartupDataCache.Enemies
             : EnemyData.AllEnemies;
 
-        return enemies.Count(IsComplete);
+        int count = enemies.Count(IsComplete);
+        _completedEnemyCount = count;
+        return count;
     }
 
     public void RecordDrops(
@@ -113,8 +120,16 @@ public class CollectionLog
     public int GetObtainedDropCount(
         Enemy enemy)
     {
-        return StartupDataCache.GetCollectionItems(enemy)
-            .Count(item => HasReceivedDrop(enemy, item));
+        if (_obtainedDropCounts.TryGetValue(enemy, out int count))
+            return count;
+
+        count = 0;
+        foreach (Item item in StartupDataCache.GetCollectionItems(enemy))
+            if (_receivedItems.Contains(item))
+                count++;
+
+        _obtainedDropCounts[enemy] = count;
+        return count;
     }
 
     public int GetDropCount(
@@ -151,6 +166,7 @@ public class CollectionLog
 
     public void RestoreSaveData(CollectionLogSaveData data)
     {
+        InvalidateCompletionCache();
         _killCounts.Clear();
         _receivedDrops.Clear();
         _receivedItems.Clear();
@@ -219,6 +235,11 @@ public class CollectionLog
         bool added =
             _receivedItems.Add(item);
 
+        // Discovery is global across shared drop tables. Invalidate before
+        // notifying listeners so combat bonuses and every screen see it.
+        if (added)
+            InvalidateCompletionCache();
+
         if (added && notify)
         {
             DropDiscovered?.Invoke(item);
@@ -236,5 +257,11 @@ public class CollectionLog
     private static Item? FindItem(string itemName)
     {
         return StartupDataCache.FindItem(itemName);
+    }
+
+    private void InvalidateCompletionCache()
+    {
+        _obtainedDropCounts.Clear();
+        _completedEnemyCount = null;
     }
 }

@@ -340,23 +340,29 @@ public partial class GamePage : ContentPage
 
         await Task.Yield();
 
-        const long ticksPerBatch = 2_000;
+        // Bound catch-up by UI time rather than a large fixed tick count;
+        // expensive loot/level-up batches must also leave room for frames.
+        var displayWatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (simulation.TicksProcessed < combatLoad.Ticks &&
                !simulation.IsComplete)
         {
-            long ticksThisBatch = Math.Min(
-                ticksPerBatch,
-                combatLoad.Ticks - simulation.TicksProcessed);
+            var batchWatch = System.Diagnostics.Stopwatch.StartNew();
+            do
+            {
+                simulation.Advance(Math.Min(32,
+                    combatLoad.Ticks - simulation.TicksProcessed));
+            }
+            while (batchWatch.ElapsedMilliseconds < 8 &&
+                   simulation.TicksProcessed < combatLoad.Ticks &&
+                   !simulation.IsComplete);
 
-            simulation.Advance(ticksThisBatch);
+            if (displayWatch.ElapsedMilliseconds >= 100)
+            {
+                UpdateOfflineCombatSimulationDisplay(simulation, combatLoad.Ticks);
+                displayWatch.Restart();
+            }
 
-            UpdateOfflineCombatSimulationDisplay(
-                simulation,
-                combatLoad.Ticks);
-
-            // Yield between large batches so the progress window remains
-            // responsive while still replaying far faster than real time.
             await Task.Delay(16);
         }
 

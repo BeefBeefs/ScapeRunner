@@ -11,6 +11,7 @@ public partial class CombatView : ContentView
     private readonly Dictionary<EnemyTier, TierSectionState> _tierSections = new();
     private readonly Dictionary<Enemy, EnemyCardState> _enemyCardStates = new();
     private int _areaNavigationGeneration;
+    private EnemyTier? _expandedTier;
     private bool _enemyListBuilt;
 
     private bool _resumeDamageBarsOnRefresh;
@@ -48,7 +49,7 @@ public partial class CombatView : ContentView
         public required VerticalStackLayout List { get; init; }
         public required IReadOnlyList<Enemy> Enemies { get; init; }
         public Border? FirstEnemyCard { get; set; }
-        public bool IsBuilt { get; set; }
+        public int BuiltCount { get; set; }
     }
 
     private sealed class EnemyDropVisual
@@ -161,8 +162,20 @@ public partial class CombatView : ContentView
     public void SetActive(bool active)
     {
         _isActive = active;
+        if (!active)
+        {
+            ++_areaNavigationGeneration;
+            PlayerDamageFill.AbortAnimation("damageTrail");
+            EnemyDamageFill.AbortAnimation("damageTrail");
+        }
         if (active)
+        {
             _hasBeenDisplayed = true;
+            if (_expandedTier is EnemyTier tier &&
+                _tierSections.TryGetValue(tier, out TierSectionState? section) &&
+                section.BuiltCount < section.Enemies.Count && EnemySelectionView.IsVisible)
+                _ = ExpandAreaAndScrollAsync(tier);
+        }
     }
 
     public bool HasBeenDisplayed => _hasBeenDisplayed;
@@ -438,8 +451,7 @@ public partial class CombatView : ContentView
             return;
 
         int navigationGeneration = ++_areaNavigationGeneration;
-
-        EnsureTierBuilt(selectedSection);
+        _expandedTier = selectedTier;
 
         foreach ((EnemyTier sectionTier, TierSectionState section) in _tierSections)
         {
@@ -453,12 +465,29 @@ public partial class CombatView : ContentView
                 : Color.FromArgb("#D99032");
         }
 
+        // Show the selected banner immediately, then build one card per UI
+        // turn. Interrupted areas retain their cards and resume on demand.
+        await Task.Delay(16);
+        while (selectedSection.BuiltCount < selectedSection.Enemies.Count)
+        {
+            if (_disposed || !_isActive ||
+                navigationGeneration != _areaNavigationGeneration ||
+                !EnemySelectionView.IsVisible)
+                return;
+
+            Enemy enemy = selectedSection.Enemies[selectedSection.BuiltCount];
+            Border card = BuildEnemyCard(enemy, selectedSection.List);
+            selectedSection.FirstEnemyCard ??= card;
+            selectedSection.BuiltCount++;
+            await Task.Delay(16);
+        }
+
         // Let MAUI measure the newly visible list before calculating its
         // ScrollView position. The generation check prevents a rapid second
         // tap from completing an obsolete scroll operation.
         await Task.Delay(35);
 
-        if (navigationGeneration != _areaNavigationGeneration ||
+        if (_disposed || !_isActive || navigationGeneration != _areaNavigationGeneration ||
             !EnemySelectionView.IsVisible ||
             !selectedSection.List.IsVisible)
         {
@@ -467,26 +496,18 @@ public partial class CombatView : ContentView
 
         if (selectedSection.FirstEnemyCard != null)
         {
-            await EnemySelectionView.ScrollToAsync(
-                selectedSection.FirstEnemyCard,
-                ScrollToPosition.Start,
-                true);
-        }
-    }
-
-    private void EnsureTierBuilt(TierSectionState section)
-    {
-        if (section.IsBuilt)
-            return;
-
-        section.IsBuilt = true;
-
-        foreach (Enemy enemy in section.Enemies)
-        {
-            Border enemyCard = BuildEnemyCard(
-                enemy,
-                section.List);
-            section.FirstEnemyCard ??= enemyCard;
+            try
+            {
+                await EnemySelectionView.ScrollToAsync(
+                    selectedSection.FirstEnemyCard,
+                    ScrollToPosition.Start,
+                    true).WaitAsync(TimeSpan.FromSeconds(1));
+            }
+            catch (TimeoutException)
+            {
+                // Some native scroll requests finish without a completion
+                // callback. The area is already open and usable.
+            }
         }
     }
 

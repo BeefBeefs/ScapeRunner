@@ -22,28 +22,7 @@ public static class GameThemeCache
 
     public static Color GetItemRarityColor(Item item)
     {
-        DropRarity rarity = (StartupDataCache.IsInitialized
-                ? StartupDataCache.Enemies
-                : EnemyData.AllEnemies)
-            .SelectMany(enemy => enemy.DropTable.Drops)
-            .Where(drop => string.Equals(
-                GetBaseItemName(drop.Item.Name),
-                GetBaseItemName(item.Name),
-                StringComparison.Ordinal))
-            .Select(drop => drop.Rarity)
-            .DefaultIfEmpty(DropRarity.Common)
-            .Max();
-
-        return GetRarityColor(rarity);
-    }
-
-    private static string GetBaseItemName(string itemName)
-    {
-        int marker = itemName.LastIndexOf(" +", StringComparison.Ordinal);
-        return marker >= 0 &&
-               int.TryParse(itemName[(marker + 2)..], out _)
-            ? itemName[..marker]
-            : itemName;
+        return GetRarityColor(RarityVisuals.GetBaseRarity(item));
     }
 
     public static void WarmUp()

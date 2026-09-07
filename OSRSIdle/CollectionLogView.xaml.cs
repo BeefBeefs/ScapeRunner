@@ -85,12 +85,6 @@ public partial class CollectionLogView : ContentView
             if (!_isActive)
                 return;
 
-            if (_hideCompleted && _collectionLog.IsComplete(enemy))
-            {
-                BuildEnemyList();
-                return;
-            }
-
             UpdateEnemyCard(enemy);
         });
     }
@@ -107,8 +101,6 @@ public partial class CollectionLogView : ContentView
 
             if (_hideCompleted)
             {
-                BuildEnemyList();
-
                 if (_selectedEnemy != null &&
                     _collectionLog.IsComplete(_selectedEnemy))
                 {
@@ -155,6 +147,7 @@ public partial class CollectionLogView : ContentView
 
     public void RefreshDisplay()
     {
+        BuildSkillingPetList();
         foreach (Enemy enemy in _enemyCards.Keys)
             UpdateEnemyCard(enemy);
 
@@ -225,16 +218,17 @@ public partial class CollectionLogView : ContentView
 
     private void BuildEnemyList()
     {
-        EnemyList.Children.Clear();
-        _enemyCards.Clear();
+        if (_enemyCards.Count > 0)
+        {
+            foreach (Enemy enemy in _enemyCards.Keys)
+                UpdateEnemyCard(enemy);
+            return;
+        }
 
         foreach (Enemy enemy in StartupDataCache.OrderedEnemies)
         {
             bool complete =
                 _collectionLog.IsComplete(enemy);
-
-            if (_hideCompleted && complete)
-                continue;
 
             int obtainedDrops =
                 _collectionLog.GetObtainedDropCount(enemy);
@@ -293,6 +287,7 @@ public partial class CollectionLogView : ContentView
                     Stroke = Color.FromArgb("#D99032"),
                     StrokeThickness = 2,
                     Opacity = 1,
+                    IsVisible = !_hideCompleted || !complete,
                     VerticalOptions = LayoutOptions.Start,
                     Content = enemyRow
                 };
@@ -328,7 +323,7 @@ public partial class CollectionLogView : ContentView
         Enemy enemy,
         bool animated = true)
     {
-        if (!_enemyCards.ContainsKey(enemy))
+        if (!_enemyCards.TryGetValue(enemy, out EnemyCardState? state) || !state.Card.IsVisible)
             return false;
 
         _selectedEnemy = enemy;
@@ -339,11 +334,12 @@ public partial class CollectionLogView : ContentView
             await CollectionScrollView.ScrollToAsync(
                 EnemyDetailCard,
                 ScrollToPosition.MakeVisible,
-                animated);
+                animated).WaitAsync(TimeSpan.FromSeconds(1));
         }
         catch
         {
-            // The details are still open if the page is removed while scrolling.
+            // Details remain open if the page is removed, or the native
+            // scroll handler never reports completion at its destination.
         }
 
         return true;
@@ -361,7 +357,9 @@ public partial class CollectionLogView : ContentView
         bool started = killCount > 0 || obtainedDrops > 0;
 
         state.Label.Text =
-            $"{enemy.Name} ({obtainedDrops}/{totalDrops}) — {killCount:N0} kills";
+            $"{enemy.Name} ({obtainedDrops}/{totalDrops}) — {killCount:N0} kills" +
+            (enemy.Traits.Count == 0 ? string.Empty :
+                $"\n{string.Join(" • ", enemy.Traits.Select(EnemyTraitRules.Name))}");
         state.Label.TextColor = complete
             ? Colors.Green
             : started
@@ -371,6 +369,10 @@ public partial class CollectionLogView : ContentView
             ? Color.FromArgb("#33333333")
             : Color.FromArgb("#E64A4A4A");
         state.Card.Opacity = 1;
+        state.Card.IsVisible = !_hideCompleted || !complete;
+
+        if (_selectedEnemy == enemy && !state.Card.IsVisible)
+            HideEnemyDetails();
 
         if (_selectedEnemy == enemy)
         {
