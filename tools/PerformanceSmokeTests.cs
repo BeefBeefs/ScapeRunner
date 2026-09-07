@@ -163,6 +163,7 @@ internal static class PerformanceSmokeTests
         using ActivityManager activity = new(player);
         using CombatManager combat = new(player);
         using ActivityBar bar = new(activity, combat);
+        await CheckLiveCombatDefeatAsync(combat);
         GameClock.SetSpeedUpEnabled(true);
         Check(
             GameClock.SpeedMultiplier == GameClock.SpeedUpMultiplier &&
@@ -245,6 +246,14 @@ internal static class PerformanceSmokeTests
         combatView.PreloadEnemyList();
         combatView.SetActive(true);
         await Task.Delay(200);
+        GraphicsView playerHitSplat = (GraphicsView)combatView.GetType()
+            .GetField("_playerHitSplat", Private)!.GetValue(combatView)!;
+        GraphicsView enemyHitSplat = (GraphicsView)combatView.GetType()
+            .GetField("_enemyHitSplat", Private)!.GetValue(combatView)!;
+        Check(
+            playerHitSplat.Drawable?.GetType().Name == "HitSplatDrawable" &&
+            enemyHitSplat.Drawable?.GetType().Name == "HitSplatDrawable",
+            "Hit splats use the reusable native six-point drawable");
         await CheckPageBackgroundAsync(
             combatView,
             "background_combat.png",
@@ -339,6 +348,57 @@ internal static class PerformanceSmokeTests
             "Offline combat refreshes cached stats after level-ups");
         PlayerSaveData save = SaveManager.CreateSaveData(player);
         Check(JsonSerializer.Deserialize<PlayerSaveData>(JsonSerializer.Serialize(save)) != null, "Save snapshot serialization (no user save touched)");
+    }
+
+    private static async Task CheckLiveCombatDefeatAsync(CombatManager combat)
+    {
+        Enemy enemy = StartupDataCache.Enemies[0];
+        TaskCompletionSource<Enemy> defeated = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        IReadOnlyList<LootResult>? lootSnapshot = null;
+        bool combatStoppedBeforeNotification = false;
+
+        void OnEnemyDefeated(Enemy defeatedEnemy)
+        {
+            combatStoppedBeforeNotification = !combat.IsInCombat;
+            lootSnapshot = combat.LastLoot;
+            defeated.TrySetResult(defeatedEnemy);
+        }
+
+        combat.EnemyDefeated += OnEnemyDefeated;
+        DebugSettings.SetInstakillEnabled(true);
+        GameClock.SetSpeedUpEnabled(true);
+
+        try
+        {
+            combat.StartCombat(enemy);
+            Enemy result = await defeated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Check(
+                ReferenceEquals(result, enemy) &&
+                combatStoppedBeforeNotification,
+                "Live defeat stops combat before notifying subscribers");
+            IReadOnlyList<LootResult> publishedLoot = lootSnapshot ??
+                throw new InvalidOperationException("Defeat did not publish loot.");
+            Check(
+                publishedLoot is ICollection<LootResult> { IsReadOnly: true } &&
+                publishedLoot.Count > 0,
+                "Live defeat publishes a read-only loot snapshot");
+
+            int awardedCount = publishedLoot.Count;
+            combat.StartCombat(enemy);
+            Check(
+                combat.LastLoot.Count == 0 &&
+                publishedLoot.Count == awardedCount,
+                "Starting the next fight cannot mutate prior defeat loot");
+        }
+        finally
+        {
+            combat.EnemyDefeated -= OnEnemyDefeated;
+            combat.AbortCombatEncounter();
+            DebugSettings.SetInstakillEnabled(false);
+            GameClock.SetSpeedUpEnabled(false);
+        }
     }
 
     private static OfflineCombatSimulation CreateOfflineCombatBenchmark(

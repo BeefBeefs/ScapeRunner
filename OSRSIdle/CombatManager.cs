@@ -12,7 +12,12 @@ public class CombatManager : IDisposable
 
     public Player Player { get; }
 
-    public List<LootResult> LastLoot { get; private set; } = new();
+    // Publish loot as one immutable snapshot. Combat events are raised from
+    // the combat loop while their UI consumers run on the main thread; a
+    // mutable List could otherwise be cleared for the next encounter while a
+    // defeat callback was still reading it.
+    public IReadOnlyList<LootResult> LastLoot { get; private set; } =
+        Array.Empty<LootResult>();
 
     public Enemy? CurrentEnemy { get; private set; }
 
@@ -224,7 +229,7 @@ public class CombatManager : IDisposable
         // Clear previous loot.
         // --------------------------------------------------------
 
-        LastLoot.Clear();
+        LastLoot = Array.Empty<LootResult>();
 
 
         // --------------------------------------------------------
@@ -344,7 +349,7 @@ public class CombatManager : IDisposable
         StopCombat();
 
         LastDefeatedEnemy = null;
-        LastLoot.Clear();
+        LastLoot = Array.Empty<LootResult>();
     }
 
     public void Dispose()
@@ -909,7 +914,9 @@ public class CombatManager : IDisposable
         // Roll loot.
         // --------------------------------------------------------
 
-        LastLoot.Clear();
+        LastLoot = Array.Empty<LootResult>();
+
+        List<LootResult> awardedLoot = new();
 
 
         foreach (Drop drop in enemy.DropTable.Drops)
@@ -948,7 +955,7 @@ public class CombatManager : IDisposable
                     effectiveChance,
                     $"{enemy.Name} kills");
 
-                LastLoot.Add(
+                awardedLoot.Add(
                     new LootResult(
                         drop.Item,
                         quantity,
@@ -965,6 +972,8 @@ public class CombatManager : IDisposable
         LastDefeatedEnemy =
             enemy;
 
+        LastLoot = Array.AsReadOnly(awardedLoot.ToArray());
+
         Player.CollectionLog.RecordKill(
             enemy);
 
@@ -974,18 +983,20 @@ public class CombatManager : IDisposable
 
 
         // --------------------------------------------------------
+        // Stop this encounter before notifying subscribers. This guarantees
+        // cleanup even when a subscriber immediately starts another action,
+        // and matches the player-defeat ordering below.
+        // --------------------------------------------------------
+
+        StopCombat();
+
+
+        // --------------------------------------------------------
         // Tell UI.
         // --------------------------------------------------------
 
         EnemyDefeated?.Invoke(
             enemy);
-
-
-        // --------------------------------------------------------
-        // Stop combat.
-        // --------------------------------------------------------
-
-        StopCombat();
     }
 
 

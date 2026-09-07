@@ -28,8 +28,8 @@ public partial class CombatView : ContentView
     private bool _playerDamageBarInitialized;
     private bool _enemyDamageBarInitialized;
 
-    private readonly Border _playerHitSplat;
-    private readonly Border _enemyHitSplat;
+    private readonly GraphicsView _playerHitSplat;
+    private readonly GraphicsView _enemyHitSplat;
 
     private const int AutoFightDelayTicks = 12;
     private sealed class EnemyCardState
@@ -110,8 +110,14 @@ public partial class CombatView : ContentView
 
     private void OnPlayerDefeated()
     {
+        if (_disposed || !_isActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             // Completely disable auto fight.
             DisableAutoFight();
 
@@ -154,6 +160,10 @@ public partial class CombatView : ContentView
 
         PlayerDamageFill.AbortAnimation("damageTrail");
         EnemyDamageFill.AbortAnimation("damageTrail");
+        _playerHitSplat.AbortAnimation("hitSplatMove");
+        _playerHitSplat.AbortAnimation("hitSplatFade");
+        _enemyHitSplat.AbortAnimation("hitSplatMove");
+        _enemyHitSplat.AbortAnimation("hitSplatFade");
 
         _autoFightCancellation?.Cancel();
         _autoFightCancellation?.Dispose();
@@ -1104,11 +1114,14 @@ public partial class CombatView : ContentView
 
     private void OnDropDiscovered(Item item)
     {
-        if (!_isActive)
+        if (_disposed || !_isActive)
             return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             RefreshEnemyCardsForItem(item);
             UpdateAreaCompletionLabels();
         });
@@ -1223,7 +1236,7 @@ public partial class CombatView : ContentView
 
     private void OnCombatStarted()
     {
-        if (!_isActive)
+        if (_disposed || !_isActive)
             return;
 
         Enemy? startedEnemy = _combatManager.CurrentEnemy;
@@ -1234,7 +1247,9 @@ public partial class CombatView : ContentView
         {
             // Combat can be stopped or switched before this queued UI update
             // runs. Never let an old event overwrite the current encounter.
-            if (_combatManager.CurrentEnemy != startedEnemy ||
+            if (_disposed ||
+                !_isActive ||
+                _combatManager.CurrentEnemy != startedEnemy ||
                 !CombatViewLayout.IsVisible)
                 return;
 
@@ -1656,41 +1671,30 @@ public partial class CombatView : ContentView
             progressFill.ScaleX = progress;
     }
 
-    private static Border CreateHitSplat()
+    private static GraphicsView CreateHitSplat()
     {
-        return new Border
+        return new GraphicsView
         {
             WidthRequest = 64,
             HeightRequest = 64,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
-            BackgroundColor = Color.FromArgb("#B82626"),
-            Stroke = Color.FromArgb("#F07058"),
-            StrokeThickness = 2,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle
-            {
-                CornerRadius = 32
-            },
             Opacity = 0,
             InputTransparent = true,
-            Content = new Label
-            {
-                FontSize = 18,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = Colors.White,
-                HorizontalTextAlignment = TextAlignment.Center,
-                VerticalTextAlignment = TextAlignment.Center
-            }
+            Drawable = new HitSplatDrawable()
         };
     }
 
     private void OnAttackPerformed(CombatHitEventArgs e)
     {
-        if (!_isActive)
+        if (_disposed || !_isActive)
             return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             ShowDamagePopup(e);
 
             // A hit should only jolt the portrait that was struck. Keeping the
@@ -1716,24 +1720,19 @@ public partial class CombatView : ContentView
             Random.Shared.NextDouble() * 12 - 6;
 
         bool playerAttacked = e.AttackerIsPlayer;
-        Border hitSplat = playerAttacked
+        GraphicsView hitSplat = playerAttacked
             ? _enemyHitSplat
             : _playerHitSplat;
 
-        if (hitSplat.Content is Label label)
+        bool hit = e.Hit && e.Damage > 0;
+        if (hitSplat.Drawable is HitSplatDrawable drawable)
         {
-            label.Text = e.Hit && e.Damage > 0
-                ? $"-{e.Damage}"
-                : "MISS";
+            drawable.Update(
+                hit,
+                hit ? $"-{e.Damage}" : "MISS");
+            hitSplat.Invalidate();
         }
 
-        bool hit = e.Hit && e.Damage > 0;
-        hitSplat.BackgroundColor = hit
-            ? Color.FromArgb("#B82626")
-            : Color.FromArgb("#2D71A8");
-        hitSplat.Stroke = hit
-            ? Color.FromArgb("#F07058")
-            : Color.FromArgb("#74C5EE");
         hitSplat.VerticalOptions = playerAttacked
             ? LayoutOptions.Center
             : LayoutOptions.End;
@@ -1770,8 +1769,16 @@ public partial class CombatView : ContentView
 
     private void OnEnemyDefeated(Enemy enemy)
     {
+        if (_disposed || !_isActive)
+            return;
+
+        IReadOnlyList<LootResult> loot = _combatManager.LastLoot;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             if (_combatManager.CurrentEnemy != null &&
                 _combatManager.CurrentEnemy != enemy)
             {
@@ -1793,7 +1800,7 @@ public partial class CombatView : ContentView
             ActiveEnemyDropsHost.IsVisible = true;
 
             LootResults.IsVisible = true;
-            BuildLootResults(enemy);
+            BuildLootResults(enemy, loot);
             UpdateHPBars();
 
             if (_autoFightEnabled)
@@ -1823,11 +1830,14 @@ public partial class CombatView : ContentView
 
     private void OnAutoEatPerformed(AutoEatEventArgs e)
     {
-        if (!_isActive)
+        if (_disposed || !_isActive)
             return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             _ = PlayAutoEatFeedbackAsync(e);
         });
     }
@@ -1962,12 +1972,14 @@ public partial class CombatView : ContentView
     }
 
 
-    private void BuildLootResults(Enemy enemy)
+    private void BuildLootResults(
+        Enemy enemy,
+        IReadOnlyList<LootResult>? lootSnapshot = null)
     {
         LootContainer.Children.Clear();
 
-        List<LootResult> loot =
-            _combatManager.LastLoot;
+        IReadOnlyList<LootResult> loot =
+            lootSnapshot ?? _combatManager.LastLoot;
 
         if (loot.Count == 0)
         {
@@ -2153,11 +2165,14 @@ public partial class CombatView : ContentView
 
     private void OnCombatStopped()
     {
-        if (!_isActive)
+        if (_disposed || !_isActive)
             return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (_disposed || !_isActive)
+                return;
+
             ResetDamageBars();
 
             SetAttackProgress(0, 0);
@@ -2351,8 +2366,8 @@ public partial class CombatView : ContentView
     }
 
     private void OnStopCombatClicked(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         DisableAutoFight();
 
@@ -2375,5 +2390,150 @@ public partial class CombatView : ContentView
         LootContainer.Children.Clear();
 
         CombatStatusLabel.Text = "";
+    }
+
+    // ================================================================
+    // NATIVE SIX-POINT HIT SPLAT
+    // ================================================================
+
+    private sealed class HitSplatDrawable : IDrawable
+    {
+        private Color _fillColor = Color.FromArgb("#B82626");
+        private Color _highlightColor = Color.FromArgb("#F07058");
+        private string _text = string.Empty;
+
+        public void Update(bool hit, string text)
+        {
+            _fillColor = hit
+                ? Color.FromArgb("#B82626")
+                : Color.FromArgb("#2D71A8");
+            _highlightColor = hit
+                ? Color.FromArgb("#F07058")
+                : Color.FromArgb("#74C5EE");
+            _text = text;
+        }
+
+        public void Draw(ICanvas canvas, RectF dirtyRect)
+        {
+            if (dirtyRect.Width <= 0 || dirtyRect.Height <= 0)
+                return;
+
+            canvas.Antialias = true;
+
+            PathF star = CreateSixPointStar(dirtyRect);
+
+            canvas.FillColor = Colors.Black;
+            canvas.StrokeColor = Colors.Black;
+            canvas.StrokeSize = 5;
+            canvas.FillPath(star);
+            canvas.DrawPath(star);
+
+            canvas.FillColor = _fillColor;
+            canvas.FillPath(star);
+
+            DrawArmFacets(canvas, dirtyRect);
+
+            canvas.StrokeColor = _highlightColor;
+            canvas.StrokeSize = 2;
+            canvas.DrawPath(star);
+
+            canvas.FontSize = _text.Length > 3 ? 17 : 21;
+            canvas.FontColor = Colors.Black;
+
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    if (x != 0 || y != 0)
+                        DrawText(canvas, dirtyRect, x, y);
+                }
+            }
+
+            canvas.FontColor = Colors.White;
+            DrawText(canvas, dirtyRect, 0, 0);
+        }
+
+        private void DrawText(
+            ICanvas canvas,
+            RectF bounds,
+            float offsetX,
+            float offsetY)
+        {
+            canvas.DrawString(
+                _text,
+                bounds.X + offsetX,
+                bounds.Y + offsetY,
+                bounds.Width,
+                bounds.Height,
+                HorizontalAlignment.Center,
+                VerticalAlignment.Center);
+        }
+
+        private void DrawArmFacets(ICanvas canvas, RectF bounds)
+        {
+            (float CenterX, float CenterY, float OuterRadius, float InnerRadius) =
+                GetStarMetrics(bounds);
+
+            canvas.FillColor = _fillColor.WithAlpha(0.55f);
+
+            for (int point = 0; point < 6; point++)
+            {
+                float tipAngle = -MathF.PI / 2 + point * MathF.PI / 3;
+                float innerAngle = tipAngle - MathF.PI / 6;
+
+                PathF facet = new();
+                facet.MoveTo(CenterX, CenterY);
+                facet.LineTo(
+                    CenterX + MathF.Cos(innerAngle) * InnerRadius,
+                    CenterY + MathF.Sin(innerAngle) * InnerRadius);
+                facet.LineTo(
+                    CenterX + MathF.Cos(tipAngle) * OuterRadius,
+                    CenterY + MathF.Sin(tipAngle) * OuterRadius);
+                facet.Close();
+                canvas.FillPath(facet);
+            }
+        }
+
+        private static PathF CreateSixPointStar(RectF bounds)
+        {
+            (float centerX, float centerY, float outerRadius, float innerRadius) =
+                GetStarMetrics(bounds);
+            PathF path = new();
+
+            for (int vertex = 0; vertex < 12; vertex++)
+            {
+                float angle = -MathF.PI / 2 + vertex * MathF.PI / 6;
+                float radius = vertex % 2 == 0
+                    ? outerRadius
+                    : innerRadius;
+                float x = centerX + MathF.Cos(angle) * radius;
+                float y = centerY + MathF.Sin(angle) * radius;
+
+                if (vertex == 0)
+                    path.MoveTo(x, y);
+                else
+                    path.LineTo(x, y);
+            }
+
+            path.Close();
+            return path;
+        }
+
+        private static (
+            float CenterX,
+            float CenterY,
+            float OuterRadius,
+            float InnerRadius) GetStarMetrics(RectF bounds)
+        {
+            float outerRadius = MathF.Max(
+                0,
+                MathF.Min(bounds.Width, bounds.Height) / 2 - 4);
+
+            return (
+                bounds.Center.X,
+                bounds.Center.Y,
+                outerRadius,
+                outerRadius * 0.68f);
+        }
     }
 }
