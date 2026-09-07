@@ -7,7 +7,7 @@
     x:Class="OSRSIdle.CollectionLogView"
     BackgroundColor="Black">
 
-    <Grid>
+    <Grid BackgroundColor="Transparent">
 
     <Image
         Source="background_collection_log.png"
@@ -16,6 +16,7 @@
         InputTransparent="True" />
 
     <ScrollView
+        BackgroundColor="Transparent"
         x:Name="CollectionScrollView">
 
         <VerticalStackLayout

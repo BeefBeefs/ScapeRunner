@@ -7,7 +7,7 @@
     x:Class="OSRSIdle.CombatView"
     BackgroundColor="Black">
 
-    <Grid>
+    <Grid BackgroundColor="Transparent">
 
         <Image
             Source="background_combat.png"
@@ -17,6 +17,7 @@
 
         <!-- Enemy selection screen -->
         <ScrollView
+            BackgroundColor="Transparent"
             x:Name="EnemySelectionView">
 
             <VerticalStackLayout
@@ -54,7 +55,7 @@
             x:Name="CombatViewLayout"
             IsVisible="False">
 
-            <ScrollView>
+            <ScrollView BackgroundColor="Transparent">
 
                 <VerticalStackLayout
                     Padding="12"

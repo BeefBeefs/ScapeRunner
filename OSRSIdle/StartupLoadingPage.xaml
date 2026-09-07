@@ -7,7 +7,7 @@
     BackgroundColor="Black"
     Shell.NavBarIsVisible="False">
 
-    <Grid>
+    <Grid BackgroundColor="Transparent">
 
         <Image
             Source="background_startup.png"

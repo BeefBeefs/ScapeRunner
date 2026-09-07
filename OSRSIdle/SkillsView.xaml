@@ -6,7 +6,7 @@
     x:Class="OSRSIdle.SkillsView"
     BackgroundColor="Black">
 
-    <Grid>
+    <Grid BackgroundColor="Transparent">
 
     <Image
         Source="background_skills.png"
@@ -14,7 +14,7 @@
         Opacity="0.30"
         InputTransparent="True" />
 
-    <ScrollView>
+    <ScrollView BackgroundColor="Transparent">
 
         <VerticalStackLayout
             Padding="12"

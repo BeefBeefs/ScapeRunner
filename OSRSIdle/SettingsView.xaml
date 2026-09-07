@@ -7,7 +7,7 @@
     x:Class="OSRSIdle.SettingsView"
     BackgroundColor="Black">
 
-    <Grid>
+    <Grid BackgroundColor="Transparent">
 
         <Image
             Source="background_settings.png"
@@ -15,7 +15,7 @@
             Opacity="0.28"
             InputTransparent="True" />
 
-        <ScrollView>
+        <ScrollView BackgroundColor="Transparent">
             <Border Style="{StaticResource GamePanelBorder}" Margin="12">
                 <VerticalStackLayout Spacing="12">
                     <Label Text="SETTINGS" FontSize="28" HorizontalOptions="Center" />

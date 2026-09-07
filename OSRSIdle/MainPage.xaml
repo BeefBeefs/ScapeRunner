@@ -6,7 +6,7 @@
     x:Class="OSRSIdle.MainPage"
     Title="OSRS Idle">
 
-    <Grid BackgroundColor="Black">
+    <Grid BackgroundColor="Transparent">
 
         <Image
             Source="background_home.png"
@@ -14,7 +14,7 @@
             Opacity="0.30"
             InputTransparent="True" />
 
-        <ScrollView>
+        <ScrollView BackgroundColor="Transparent">
 
             <VerticalStackLayout
                 Padding="20"

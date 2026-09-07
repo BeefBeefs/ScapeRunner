@@ -8,6 +8,7 @@
     BackgroundColor="Black">
 
     <Grid
+        BackgroundColor="Transparent"
         RowDefinitions="Auto,Auto,Auto,Auto,*"
         RowSpacing="8">
 
@@ -204,6 +205,7 @@
         <!-- ================================================= -->
 
         <ScrollView
+            BackgroundColor="Transparent"
             Grid.Row="4"
             VerticalScrollBarVisibility="Always">
 
