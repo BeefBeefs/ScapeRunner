@@ -164,16 +164,30 @@
                         HorizontalOptions="Center"
                         HorizontalTextAlignment="Center" />
 
-                    <local:GoldSliceButton
-                        x:Name="OfflineCombatContinueButton"
-                        Text="Simulating..."
-                        Variant="Neutral"
-                        TextColor="White"
-                        IsEnabled="False"
-                        WidthRequest="128"
-                        HorizontalOptions="Center"
-                        CenterText="True"
-                        Clicked="OnOfflineCombatContinueClicked" />
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        HorizontalOptions="Center">
+
+                        <local:GoldSliceButton
+                            x:Name="OfflineCombatContinueButton"
+                            Text="Simulating..."
+                            Variant="Neutral"
+                            TextColor="White"
+                            IsEnabled="False"
+                            WidthRequest="128"
+                            CenterText="True"
+                            Clicked="OnOfflineCombatContinueClicked" />
+
+                        <local:GoldSliceButton
+                            x:Name="OfflineCombatCancelButton"
+                            Text="Cancel"
+                            Variant="Red"
+                            TextColor="White"
+                            WidthRequest="128"
+                            CenterText="True"
+                            Clicked="OnOfflineCombatCancelClicked" />
+
+                    </HorizontalStackLayout>
 
                 </VerticalStackLayout>
 

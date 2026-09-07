@@ -169,7 +169,7 @@ public class Game
 
     public void Save()
     {
-        if (!HasStarted)
+        if (!HasStarted || IsOfflineCombatSimulationActive)
             return;
 
         lock (_saveLock)
@@ -389,6 +389,12 @@ public class Game
 
     public void ScheduleSave()
     {
+        // Offline catch-up mutates a large amount of player state in one
+        // operation. Completion writes one coherent save; intermediate save
+        // snapshots would add work and could observe a background batch.
+        if (IsOfflineCombatSimulationActive)
+            return;
+
         lock (_saveLock)
         {
             if (_savePending)
@@ -409,7 +415,7 @@ public class Game
             _savePending = false;
         }
 
-        if (!HasStarted)
+        if (!HasStarted || IsOfflineCombatSimulationActive)
             return;
 
         long requestId = SaveManager.CreateSaveRequest();

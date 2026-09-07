@@ -9,9 +9,11 @@
     <Grid BackgroundColor="Transparent">
 
     <Image
+        x:Name="PageBackgroundImage"
         Source="background_skills.png"
         Aspect="AspectFill"
-        Opacity="0.30"
+        HorizontalOptions="Fill"
+        VerticalOptions="Fill"
         InputTransparent="True" />
 
     <ScrollView BackgroundColor="Transparent">

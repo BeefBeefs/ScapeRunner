@@ -30,9 +30,23 @@ public class CollectionLog
 
     public void RecordKill(Enemy enemy)
     {
-        _killCounts.TryGetValue(enemy, out int currentCount);
+        RecordKills(enemy, 1);
+    }
 
-        _killCounts[enemy] = currentCount + 1;
+    public void RecordKills(Enemy enemy, long count)
+    {
+        if (count <= 0)
+            return;
+
+        _killCounts.TryGetValue(enemy, out int currentCount);
+        int updatedCount = currentCount + (int)Math.Min(
+            count,
+            int.MaxValue - (long)currentCount);
+
+        if (updatedCount == currentCount)
+            return;
+
+        _killCounts[enemy] = updatedCount;
 
         KillCountChanged?.Invoke(enemy);
         CollectionChanged?.Invoke();
@@ -99,6 +113,14 @@ public class CollectionLog
     {
         _ = enemy;
         return _receivedItems.Contains(item);
+    }
+
+    internal bool HasRecordedDrop(Enemy enemy, Item item)
+    {
+        return _receivedDrops.TryGetValue(
+            enemy,
+            out HashSet<Item>? receivedDrops) &&
+            receivedDrops.Contains(item);
     }
 
     public void RecordSkillingPet(

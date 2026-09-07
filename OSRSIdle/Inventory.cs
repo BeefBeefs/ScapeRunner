@@ -35,6 +35,9 @@ public class Inventory
     // ============================================================
     public event Action? InventoryChanged;
 
+    private int _notificationDeferralDepth;
+    private bool _notificationPending;
+
     public Inventory()
     {
         Items = new List<InventoryItem>();
@@ -52,16 +55,13 @@ public class Inventory
         if (quantity <= 0)
             return false;
 
-        InventoryItem? existingItem =
-            Items.FirstOrDefault(
-                inventoryItem =>
-                    AreSameStack(item, inventoryItem.Item));
+        InventoryItem? existingItem = FindStack(item);
 
         if (existingItem != null)
         {
             existingItem.Quantity += quantity;
 
-            InventoryChanged?.Invoke();
+            NotifyChanged();
 
             return true;
         }
@@ -74,7 +74,7 @@ public class Inventory
                 item,
                 quantity));
 
-        InventoryChanged?.Invoke();
+        NotifyChanged();
         return true;
     }
 
@@ -91,10 +91,7 @@ public class Inventory
             return false;
 
 
-        InventoryItem? existingItem =
-            Items.FirstOrDefault(
-                inventoryItem =>
-                    AreSameStack(item, inventoryItem.Item));
+        InventoryItem? existingItem = FindStack(item);
 
 
         // --------------------------------------------------------
@@ -130,7 +127,7 @@ public class Inventory
             Items.Remove(existingItem);
         }
 
-        InventoryChanged?.Invoke();
+        NotifyChanged();
 
         return true;
     }
@@ -143,10 +140,7 @@ public class Inventory
     public int GetQuantity(
         Item item)
     {
-        InventoryItem? existingItem =
-            Items.FirstOrDefault(
-                inventoryItem =>
-                    AreSameStack(item, inventoryItem.Item));
+        InventoryItem? existingItem = FindStack(item);
 
 
         if (existingItem == null)
@@ -180,7 +174,7 @@ public class Inventory
             return false;
         }
 
-        InventoryChanged?.Invoke();
+        NotifyChanged();
         return true;
     }
 
@@ -232,7 +226,7 @@ public class Inventory
         }
 
         if (combinedPairs > 0)
-            InventoryChanged?.Invoke();
+            NotifyChanged();
 
         return combinedPairs > 0;
     }
@@ -290,7 +284,7 @@ public class Inventory
             return false;
         }
 
-        InventoryChanged?.Invoke();
+        NotifyChanged();
         return true;
     }
 
@@ -360,7 +354,7 @@ public class Inventory
     public void Clear()
     {
         Items.Clear();
-        InventoryChanged?.Invoke();
+        NotifyChanged();
     }
 
     public bool CanAddItem(Item item)
@@ -400,6 +394,68 @@ public class Inventory
             (source.Quantity == 1 && source.Item.Type != ItemType.Pet ? 1 : 0);
 
         return usedSlotsAfterRemoval < SlotCapacity;
+    }
+
+    /// <summary>
+    /// Coalesces inventory notifications while a simulation applies many
+    /// individual item changes. The inventory itself remains current, but UI
+    /// and save listeners refresh only once when the batch finishes.
+    /// </summary>
+    internal IDisposable DeferNotifications()
+    {
+        _notificationDeferralDepth++;
+        return new NotificationDeferral(this);
+    }
+
+    private void EndNotificationDeferral()
+    {
+        if (_notificationDeferralDepth <= 0)
+            return;
+
+        _notificationDeferralDepth--;
+        if (_notificationDeferralDepth == 0 && _notificationPending)
+        {
+            _notificationPending = false;
+            InventoryChanged?.Invoke();
+        }
+    }
+
+    private void NotifyChanged()
+    {
+        if (_notificationDeferralDepth > 0)
+        {
+            _notificationPending = true;
+            return;
+        }
+
+        InventoryChanged?.Invoke();
+    }
+
+    private InventoryItem? FindStack(Item item)
+    {
+        foreach (InventoryItem inventoryItem in Items)
+        {
+            if (AreSameStack(item, inventoryItem.Item))
+                return inventoryItem;
+        }
+
+        return null;
+    }
+
+    private sealed class NotificationDeferral : IDisposable
+    {
+        private Inventory? _inventory;
+
+        public NotificationDeferral(Inventory inventory)
+        {
+            _inventory = inventory;
+        }
+
+        public void Dispose()
+        {
+            Inventory? inventory = Interlocked.Exchange(ref _inventory, null);
+            inventory?.EndNotificationDeferral();
+        }
     }
 
     // Upgraded equipment is reconstructed as a new Item instance each time
@@ -480,7 +536,7 @@ public class Inventory
             return false;
 
         SlotCapacity++;
-        InventoryChanged?.Invoke();
+        NotifyChanged();
         return true;
     }
 

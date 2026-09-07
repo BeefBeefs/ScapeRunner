@@ -131,6 +131,9 @@ public class Player
 
     public event Action? EquipmentChanged;
 
+    private int _equipmentNotificationDeferralDepth;
+    private bool _equipmentNotificationPending;
+
     private bool _equipmentBonusCacheDirty = true;
     private int _cachedEquipmentAttackBonus;
     private int _cachedEquipmentStrengthBonus;
@@ -273,7 +276,7 @@ public class Player
                 CurrentHP,
                 GetMaxHP());
 
-        EquipmentChanged?.Invoke();
+        NotifyEquipmentChanged();
 
         return true;
     }
@@ -315,7 +318,7 @@ public class Player
                 CurrentHP,
                 GetMaxHP());
 
-        EquipmentChanged?.Invoke();
+        NotifyEquipmentChanged();
 
         return true;
     }
@@ -330,7 +333,7 @@ public class Player
         }
 
         EquippedFood = item;
-        EquipmentChanged?.Invoke();
+        NotifyEquipmentChanged();
 
         return true;
     }
@@ -341,7 +344,7 @@ public class Player
             return;
 
         EquippedFood = null;
-        EquipmentChanged?.Invoke();
+        NotifyEquipmentChanged();
     }
 
     public bool TryConsumeEquippedFood()
@@ -364,9 +367,56 @@ public class Player
             EquippedFood = null;
         }
 
-        EquipmentChanged?.Invoke();
+        NotifyEquipmentChanged();
 
         return true;
+    }
+
+    internal IDisposable DeferEquipmentNotifications()
+    {
+        _equipmentNotificationDeferralDepth++;
+        return new EquipmentNotificationDeferral(this);
+    }
+
+    private void EndEquipmentNotificationDeferral()
+    {
+        if (_equipmentNotificationDeferralDepth <= 0)
+            return;
+
+        _equipmentNotificationDeferralDepth--;
+        if (_equipmentNotificationDeferralDepth == 0 &&
+            _equipmentNotificationPending)
+        {
+            _equipmentNotificationPending = false;
+            EquipmentChanged?.Invoke();
+        }
+    }
+
+    private void NotifyEquipmentChanged()
+    {
+        if (_equipmentNotificationDeferralDepth > 0)
+        {
+            _equipmentNotificationPending = true;
+            return;
+        }
+
+        EquipmentChanged?.Invoke();
+    }
+
+    private sealed class EquipmentNotificationDeferral : IDisposable
+    {
+        private Player? _player;
+
+        public EquipmentNotificationDeferral(Player player)
+        {
+            _player = player;
+        }
+
+        public void Dispose()
+        {
+            Player? player = Interlocked.Exchange(ref _player, null);
+            player?.EndEquipmentNotificationDeferral();
+        }
     }
 
 

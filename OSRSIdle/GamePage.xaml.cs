@@ -61,6 +61,10 @@ public partial class GamePage : ContentPage
 
     private long _offlineRespawnAccelerationTicks;
 
+    private CancellationTokenSource? _offlineCombatCancellation;
+
+    private const long OfflineCombatBatchTicks = 16_384;
+
     private TaskCompletionSource<string?>? _customDialogCompletion;
 
     private bool _customDialogDismissOnBackground;
@@ -214,6 +218,9 @@ public partial class GamePage : ContentPage
 
     private void OnHealthRegenerationTick(object? sender, EventArgs e)
     {
+        if (_game.IsOfflineCombatSimulationActive)
+            return;
+
         _healthRegenerationTickCount++;
 
         if (_healthRegenerationTickCount < HealthRegenerationTicks)
@@ -337,25 +344,39 @@ public partial class GamePage : ContentPage
         OfflineCombatLootLabel.Text = "No loot yet.";
         OfflineCombatContinueButton.IsEnabled = false;
         OfflineCombatContinueButton.Text = "Simulating...";
+        OfflineCombatContinueButton.Variant = GoldSliceButtonVariant.Neutral;
+
+        _offlineCombatCancellation?.Cancel();
+        _offlineCombatCancellation?.Dispose();
+        CancellationTokenSource cancellation = new();
+        _offlineCombatCancellation = cancellation;
+        CancellationToken cancellationToken = cancellation.Token;
+
+        OfflineCombatCancelButton.Text = "Cancel";
+        OfflineCombatCancelButton.IsEnabled = true;
+        OfflineCombatCancelButton.IsVisible = true;
+
+        // Leave the Home page visible behind the overlay without allowing its
+        // event handlers to read player state while a background batch writes.
+        _homeView?.SetActive(false);
 
         await Task.Yield();
 
-        // Bound catch-up by UI time rather than a large fixed tick count;
-        // expensive loot/level-up batches must also leave room for frames.
+        // Run bounded batches away from the UI thread. The previous loop spent
+        // two thirds of its wall time in fixed delays; background batches keep
+        // the dialog responsive while allowing catch-up to run continuously.
         var displayWatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (simulation.TicksProcessed < combatLoad.Ticks &&
-               !simulation.IsComplete)
+               !simulation.IsComplete &&
+               !cancellationToken.IsCancellationRequested)
         {
-            var batchWatch = System.Diagnostics.Stopwatch.StartNew();
-            do
-            {
-                simulation.Advance(Math.Min(32,
-                    combatLoad.Ticks - simulation.TicksProcessed));
-            }
-            while (batchWatch.ElapsedMilliseconds < 8 &&
-                   simulation.TicksProcessed < combatLoad.Ticks &&
-                   !simulation.IsComplete);
+            long batchTicks = Math.Min(
+                OfflineCombatBatchTicks,
+                combatLoad.Ticks - simulation.TicksProcessed);
+
+            await Task.Run(() =>
+                simulation.Advance(batchTicks, cancellationToken));
 
             if (displayWatch.ElapsedMilliseconds >= 100)
             {
@@ -363,18 +384,32 @@ public partial class GamePage : ContentPage
                 displayWatch.Restart();
             }
 
-            await Task.Delay(16);
+            await Task.Yield();
         }
+
+        bool simulationCancelled =
+            cancellationToken.IsCancellationRequested &&
+            simulation.TicksProcessed < combatLoad.Ticks &&
+            !simulation.IsComplete;
+
+        if (ReferenceEquals(_offlineCombatCancellation, cancellation))
+            _offlineCombatCancellation = null;
+
+        cancellation.Dispose();
+        OfflineCombatCancelButton.IsEnabled = false;
+        OfflineCombatCancelButton.IsVisible = false;
 
         UpdateOfflineCombatSimulationDisplay(
             simulation,
             combatLoad.Ticks);
 
-        string simulationResult = simulation.PlayerDied
-            ? BuildOfflineCombatDeathMessage(simulation)
-            : simulation.IsComplete
-                ? "Combat ended before all saved ticks were used."
-                : BuildOfflineCombatXPMessage(simulation);
+        string simulationResult = simulationCancelled
+            ? BuildOfflineCombatCancellationMessage(simulation)
+            : simulation.PlayerDied
+                ? BuildOfflineCombatDeathMessage(simulation)
+                : simulation.IsComplete
+                    ? "Combat ended before all saved ticks were used."
+                    : BuildOfflineCombatXPMessage(simulation);
 
         OfflineCombatResultLabel.Text = simulationResult +
             BuildLevelUpSummary(simulation.GetLevelUps());
@@ -394,6 +429,12 @@ public partial class GamePage : ContentPage
         OfflineCombatContinueButton.IsEnabled = true;
 
         _game.CompleteOfflineCombatSimulation();
+
+        if (!_disposed)
+        {
+            _homeView?.SetActive(true);
+            _homeView?.RefreshDisplay();
+        }
     }
 
     private void UpdateOfflineCombatSimulationDisplay(
@@ -438,6 +479,21 @@ public partial class GamePage : ContentPage
         OfflineCombatLootLabel.FormattedText = lootText;
     }
 
+    private void OnOfflineCombatCancelClicked(
+        object? sender,
+        EventArgs e)
+    {
+        CancellationTokenSource? cancellation =
+            _offlineCombatCancellation;
+
+        if (cancellation == null || cancellation.IsCancellationRequested)
+            return;
+
+        OfflineCombatCancelButton.IsEnabled = false;
+        OfflineCombatCancelButton.Text = "Cancelling...";
+        cancellation.Cancel();
+    }
+
     private async void OnOfflineCombatContinueClicked(
         object? sender,
         EventArgs e)
@@ -473,6 +529,13 @@ public partial class GamePage : ContentPage
         }
 
         ShowHomePage();
+    }
+
+    private static string BuildOfflineCombatCancellationMessage(
+        OfflineCombatSimulation simulation)
+    {
+        return "Offline combat simulation cancelled.\n" +
+               $"Rewards from {simulation.TicksProcessed:N0} processed ticks were kept.";
     }
 
     private static string BuildOfflineCombatXPMessage(
@@ -987,6 +1050,10 @@ public partial class GamePage : ContentPage
 
         _notificationQueue.Dispose();
 
+        _offlineCombatCancellation?.Cancel();
+        _offlineCombatCancellation?.Dispose();
+        _offlineCombatCancellation = null;
+
         _deathCancellation?.Cancel();
         _deathCancellation?.Dispose();
         _deathCancellation = null;
@@ -1397,6 +1464,9 @@ public partial class GamePage : ContentPage
 
     private void OnCollectionCompleted(Enemy enemy)
     {
+        if (_game.IsOfflineCombatSimulationActive)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             _notificationQueue.Enqueue(cancellationToken =>

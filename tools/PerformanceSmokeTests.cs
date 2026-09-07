@@ -122,6 +122,10 @@ internal static class PerformanceSmokeTests
         host.Content = inventory;
         inventory.SetActive(true);
         await Task.Delay(250);
+        await CheckPageBackgroundAsync(
+            inventory,
+            "background_inventory.png",
+            "Inventory");
         Grid grid = inventory.FindByName<Grid>("InventoryGrid");
         Check(grid.Children.Count == equipment.Length && States(inventory, "_slots").Count == equipment.Length,
             "All 40 inventory stacks have slots");
@@ -159,11 +163,20 @@ internal static class PerformanceSmokeTests
         using ActivityManager activity = new(player);
         using CombatManager combat = new(player);
         using ActivityBar bar = new(activity, combat);
+        bool checkedSkillBackground = false;
         foreach (Skill skill in player.Skills)
         {
             SkillPage skillView = new(skill, activity);
             host.Content = skillView;
             skillView.SetActive(true);
+            if (!checkedSkillBackground)
+            {
+                await CheckPageBackgroundAsync(
+                    skillView,
+                    "background_skill.png",
+                    "Skill detail");
+                checkedSkillBackground = true;
+            }
             GameClock.SetDebugSpeedMultiplier(100);
             activity.StartActivity(skill, skill.Activities[0]);
             DateTime deadline = DateTime.UtcNow.AddSeconds(5);
@@ -182,17 +195,29 @@ internal static class PerformanceSmokeTests
         home.SetActive(true);
         home.RefreshDisplay();
         await Task.Delay(100);
+        await CheckPageBackgroundAsync(
+            home,
+            "background_home.png",
+            "Home");
         home.Dispose();
         SkillsView skills = new(player, activity);
         host.Content = skills;
         skills.SetActive(true);
         skills.RefreshDisplay();
         await Task.Delay(100);
+        await CheckPageBackgroundAsync(
+            skills,
+            "background_skills.png",
+            "Skills");
         skills.Dispose();
 
         CollectionLogView collection = new(player.CollectionLog, _ => { });
         host.Content = collection;
         collection.SetActive(true);
+        await CheckPageBackgroundAsync(
+            collection,
+            "background_collection_log.png",
+            "Collection log");
         VerticalStackLayout enemyList = collection.FindByName<VerticalStackLayout>("EnemyList");
         object[] cards = enemyList.Children.Cast<object>().ToArray();
         Enemy enemy = StartupDataCache.Enemies[0];
@@ -211,6 +236,10 @@ internal static class PerformanceSmokeTests
         combatView.PreloadEnemyList();
         combatView.SetActive(true);
         await Task.Delay(200);
+        await CheckPageBackgroundAsync(
+            combatView,
+            "background_combat.png",
+            "Combat");
         Task abandoned = (Task)Call(combatView, "ExpandAreaAndScrollAsync", EnemyTier.Tier1)!;
         combatView.SetActive(false);
         await abandoned;
@@ -236,15 +265,92 @@ internal static class PerformanceSmokeTests
         combat.ClearAutoFightRespawn();
         combatView.Dispose();
 
-        Player offlinePlayer = new();
-        offlinePlayer.HP.RestoreXP(ExperienceTable.GetXPForLevel(99));
-        offlinePlayer.CurrentHP = offlinePlayer.GetMaxHP();
-        OfflineCombatSimulation simulation = new(offlinePlayer, new OfflineActivitySaveData
-        { Kind = "Combat", ActivityName = enemy.Name, IsAutoFight = true });
-        simulation.Advance(2000);
-        Check(simulation.TicksProcessed > 0 && (simulation.Kills > 0 || simulation.PlayerDied), "Offline combat catch-up");
+        SettingsView settings = new(() => { }, () => { }, () => { });
+        host.Content = settings;
+        await CheckPageBackgroundAsync(
+            settings,
+            "background_settings.png",
+            "Settings");
+        settings.Dispose();
+
+        // Warm the simulator's JIT paths before measuring a representative
+        // long catch-up. A maxed player versus the starter enemy survives the
+        // full run without debug-only combat behavior changing the workload.
+        OfflineCombatSimulation warmup = CreateOfflineCombatBenchmark(enemy, out _);
+        warmup.Advance(2000);
+
+        OfflineCombatSimulation simulation = CreateOfflineCombatBenchmark(
+            enemy,
+            out Player offlinePlayer);
+        int inventoryNotifications = 0;
+        offlinePlayer.Inventory.InventoryChanged += () => inventoryNotifications++;
+        Benchmark("100000 ticks of offline combat", () => simulation.Advance(100_000));
+        Check(simulation.TicksProcessed == 100_000 && simulation.Kills > 0 && !simulation.PlayerDied,
+            "100,000-tick offline combat catch-up");
+        Check(inventoryNotifications == 1 &&
+              offlinePlayer.CollectionLog.GetKillCount(enemy) == simulation.Kills,
+            "Offline combat batches notifications without losing rewards");
+
+        OfflineCombatSimulation cancelledSimulation =
+            CreateOfflineCombatBenchmark(enemy, out Player cancellationPlayer);
+        using (CancellationTokenSource cancellation = new())
+        {
+            // The first collection mutation occurs inside Advance, so this
+            // cancels a run that has genuinely started rather than merely
+            // passing an already-cancelled token.
+            cancellationPlayer.CollectionLog.CollectionChanged +=
+                cancellation.Cancel;
+            cancelledSimulation.Advance(100_000, cancellation.Token);
+        }
+        Check(cancelledSimulation.TicksProcessed > 0 &&
+              cancelledSimulation.TicksProcessed < 100_000 &&
+              cancelledSimulation.Kills > 0 &&
+              cancellationPlayer.CollectionLog.GetKillCount(enemy) ==
+                  cancelledSimulation.Kills,
+            "Offline combat cancellation stops an active run without losing rewards");
+
+        Player levelingPlayer = new();
+        levelingPlayer.Inventory.AddItem(ItemData.Watermelon, 1_000);
+        Check(levelingPlayer.SelectFood(ItemData.Watermelon),
+            "Offline combat progression test food equipped");
+        levelingPlayer.CurrentHP = levelingPlayer.GetMaxHP();
+        OfflineCombatSimulation levelingSimulation = new(
+            levelingPlayer,
+            new OfflineActivitySaveData
+            {
+                Kind = "Combat",
+                ActivityName = enemy.Name,
+                IsAutoFight = true,
+                CombatStyle = CombatStyle.Attack.ToString()
+            });
+        levelingSimulation.Advance(20_000);
+        Check(levelingSimulation.TicksProcessed == 20_000 &&
+              levelingPlayer.Attack.Level > 1 &&
+              !levelingSimulation.PlayerDied,
+            "Offline combat refreshes cached stats after level-ups");
         PlayerSaveData save = SaveManager.CreateSaveData(player);
         Check(JsonSerializer.Deserialize<PlayerSaveData>(JsonSerializer.Serialize(save)) != null, "Save snapshot serialization (no user save touched)");
+    }
+
+    private static OfflineCombatSimulation CreateOfflineCombatBenchmark(
+        Enemy enemy,
+        out Player player)
+    {
+        player = new Player();
+        double level99XP = ExperienceTable.GetXPForLevel(99);
+        player.HP.RestoreXP(level99XP);
+        player.Attack.RestoreXP(level99XP);
+        player.Strength.RestoreXP(level99XP);
+        player.Defense.RestoreXP(level99XP);
+        player.CurrentHP = player.GetMaxHP();
+
+        return new OfflineCombatSimulation(player, new OfflineActivitySaveData
+        {
+            Kind = "Combat",
+            ActivityName = enemy.Name,
+            IsAutoFight = true,
+            CombatStyle = CombatStyle.Attack.ToString()
+        });
     }
 
     private static void Benchmark(string name, Action action)
@@ -279,6 +385,47 @@ internal static class PerformanceSmokeTests
         DateTime deadline = DateTime.UtcNow.AddSeconds(5);
         while (!ready() && DateTime.UtcNow < deadline)
             await Task.Delay(50);
+    }
+
+    private static async Task CheckPageBackgroundAsync(
+        ContentView view,
+        string expectedSource,
+        string pageName)
+    {
+        await UntilAsync(() => IsPageBackgroundReady(view, expectedSource));
+        Check(
+            IsPageBackgroundReady(view, expectedSource),
+            $"{pageName} page renders {expectedSource}");
+    }
+
+    private static bool IsPageBackgroundReady(
+        ContentView view,
+        string expectedSource)
+    {
+        Image? image = view.FindByName<Image>("PageBackgroundImage");
+        if (image?.Source is not FileImageSource fileSource ||
+            !string.Equals(fileSource.File, expectedSource, StringComparison.OrdinalIgnoreCase) ||
+            image.Opacity < 0.99 ||
+            image.Width <= 0 ||
+            image.Height <= 0 ||
+            image.Width + 1 < view.Width ||
+            image.Height + 1 < view.Height)
+        {
+            return false;
+        }
+
+#if WINDOWS
+        return image.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.Image
+        {
+            Source: Microsoft.UI.Xaml.Media.Imaging.BitmapSource
+            {
+                PixelWidth: > 0,
+                PixelHeight: > 0
+            }
+        };
+#else
+        return image.Handler?.PlatformView != null;
+#endif
     }
 
     private static IEnumerable<Label> Labels(IView view)

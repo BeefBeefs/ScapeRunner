@@ -24,8 +24,9 @@ Changes:
   Calculate activity recommendations once per refresh and prevent overlapping
   action-completion animations.
 - Update text shadows selectively for counters and animation properties.
-- Yield during offline combat after roughly 8 ms of simulation work, checking
-  the budget every 32 ticks. Refresh the summary at most every 100 ms.
+- Run offline combat in cancellable 16,384-tick background batches, refresh the
+  summary at most every 100 ms and avoid fixed delays between batches. Cache
+  combat values between level-ups and coalesce reward notifications.
 
 ## Native regression run
 
@@ -66,6 +67,30 @@ not claims of end-to-end frame-rate improvement on physical devices.
 
 Omit `PerformanceSmokeTests` for normal playable builds. Only Windows and Android
 are included in this validation workflow.
+
+## Offline combat benchmark (2026-09-07)
+
+This change was built and tested on Windows x64 only. No Android build, emulator
+run or device test was performed. The same unpackaged Release diagnostic and
+fresh-player scenario ran 100,000 auto-fight ticks against Chicken before and
+after the optimization:
+
+```powershell
+dotnet build OSRSIdle/OSRSIdle.csproj -f net10.0-windows10.0.19041.0 -c Release -p:WindowsPackageType=None -p:PerformanceSmokeTests=true -p:AppxPackageSigningEnabled=false
+```
+
+| 100,000 offline combat ticks | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Core simulation time | 17.55 ms | 8.92 ms | 49.2% less time (1.97x throughput) |
+| Managed allocations | 3,500,736 B | 17,296 B | 99.5% lower |
+
+Both runs completed all 100,000 ticks without player death. The final regression
+run also passed active cancellation, reward persistence, notification batching
+and stat-cache refresh across level-ups. Reports are retained in
+`artifacts/windows-offline-before.txt` and `artifacts/windows-offline-after.txt`.
+These are single-run in-process measurements of `OfflineCombatSimulation.Advance`;
+they exclude UI startup. The interactive path additionally removes the previous
+fixed 16 ms delay after each simulation work batch.
 
 ## Verified results (2026-09-06)
 

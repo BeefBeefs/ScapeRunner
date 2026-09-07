@@ -13,10 +13,12 @@
         RowSpacing="8">
 
         <Image
+            x:Name="PageBackgroundImage"
             Grid.RowSpan="5"
             Source="background_inventory.png"
             Aspect="AspectFill"
-            Opacity="0.30"
+            HorizontalOptions="Fill"
+            VerticalOptions="Fill"
             InputTransparent="True" />
 
         <!-- ================================================= -->
