@@ -24,6 +24,9 @@ public partial class CombatView : ContentView
     private bool _hasBeenDisplayed;
     private bool _playerDamageBarInitialized;
     private bool _enemyDamageBarInitialized;
+    private int _lastAnimatedAutoFightTicks = -1;
+
+    private const int HitSplatAnimationMilliseconds = 1_450;
 
     private readonly GraphicsView _playerHitSplat;
     private readonly GraphicsView _enemyHitSplat;
@@ -52,6 +55,7 @@ public partial class CombatView : ContentView
     {
         public required Drop Drop { get; init; }
         public required Image Icon { get; init; }
+        public required BoxView Blackout { get; init; }
         public required Grid IconHost { get; init; }
         public required Label Label { get; init; }
         public bool RarityDecorated { get; set; }
@@ -112,6 +116,15 @@ public partial class CombatView : ContentView
             : _combatManager.IsAutoFightRespawning
                 ? $"Next enemy in {ticks} tick{(ticks == 1 ? "" : "s")}..."
                 : "Fighting...";
+        if (enabled && _combatManager.IsAutoFightRespawning && ticks != _lastAnimatedAutoFightTicks)
+        {
+            _lastAnimatedAutoFightTicks = ticks;
+            _ = VisualEffects.PulseAsync(AutoFightStatusLabel, 1.08, 90);
+        }
+        else if (!enabled || !_combatManager.IsAutoFightRespawning)
+        {
+            _lastAnimatedAutoFightTicks = -1;
+        }
         UpdateEnemyNameAppearance();
         UpdateEnemyPortraitAppearance();
     }
@@ -182,10 +195,17 @@ public partial class CombatView : ContentView
             ++_areaNavigationGeneration;
             PlayerDamageFill.AbortAnimation("damageTrail");
             EnemyDamageFill.AbortAnimation("damageTrail");
+            AreaAmbientLayer.Stop();
+            AreaAmbientLayer.IsVisible = false;
+            EnemyStatusEffectLayer.Stop();
+            EnemyStatusEffectLayer.IsVisible = false;
+            PlayerStatusEffectLayer.Stop();
+            PlayerStatusEffectLayer.IsVisible = false;
         }
         if (active)
         {
             _hasBeenDisplayed = true;
+            UpdateAreaAmbientEffect();
             if (_expandedTier is EnemyTier tier &&
                 _tierSections.TryGetValue(tier, out TierSectionState? section) &&
                 section.BuiltCount < section.Enemies.Count && EnemySelectionView.IsVisible)
@@ -339,6 +359,7 @@ public partial class CombatView : ContentView
 
             BuildTierSection(tier, enemiesInTier);
         }
+        UpdateAreaAmbientEffect();
     }
     private void BuildTierSection(
     EnemyTier tier,
@@ -467,6 +488,7 @@ public partial class CombatView : ContentView
 
         int navigationGeneration = ++_areaNavigationGeneration;
         _expandedTier = selectedTier;
+        UpdateAreaAmbientEffect();
 
         foreach ((EnemyTier sectionTier, TierSectionState section) in _tierSections)
         {
@@ -870,8 +892,18 @@ public partial class CombatView : ContentView
                 WidthRequest = 16,
                 HeightRequest = 16,
                 Aspect = Aspect.AspectFit,
-                IsVisible = obtained,
+                IsVisible = true,
+                Opacity = obtained ? 1 : 0,
                 VerticalOptions = LayoutOptions.Start
+            };
+
+            BoxView blackout = new()
+            {
+                Color = Colors.Black,
+                WidthRequest = 16,
+                HeightRequest = 16,
+                IsVisible = !obtained,
+                InputTransparent = true
             };
 
             Label dropLabel = new()
@@ -903,6 +935,7 @@ public partial class CombatView : ContentView
                 IsClippedToBounds = false
             };
             dropIconHost.Children.Add(dropIcon);
+            dropIconHost.Children.Add(blackout);
             if (obtained)
                 AddRarityDecoration(dropIconHost, drop.Rarity, 16);
             dropRow.Add(dropIconHost, 0);
@@ -913,6 +946,7 @@ public partial class CombatView : ContentView
             {
                 Drop = drop,
                 Icon = dropIcon,
+                Blackout = blackout,
                 IconHost = dropIconHost,
                 RarityDecorated = obtained,
                 Label = dropLabel
@@ -990,7 +1024,9 @@ public partial class CombatView : ContentView
                 _activeDropEnemy,
                 visual.Drop.Item);
 
-            visual.Icon.IsVisible = obtained;
+            visual.Icon.IsVisible = true;
+            visual.Icon.Opacity = obtained ? 1 : 0;
+            visual.Blackout.IsVisible = !obtained;
             visual.Label.Text = BuildCompactDropLabelText(
                 visual.Drop,
                 obtained);
@@ -1058,7 +1094,9 @@ public partial class CombatView : ContentView
                 enemy,
                 dropVisual.Drop.Item);
 
-            dropVisual.Icon.IsVisible = obtained;
+            dropVisual.Icon.IsVisible = true;
+            dropVisual.Icon.Opacity = obtained ? 1 : 0;
+            dropVisual.Blackout.IsVisible = !obtained;
             dropVisual.Label.Text = BuildDropLabelText(
                 dropVisual.Drop,
                 obtained);
@@ -1360,12 +1398,55 @@ public partial class CombatView : ContentView
     private void UpdateEnemyCombatStats(Enemy enemy)
     {
         UpdateActiveEnemyDropTable(enemy);
+        UpdateStatusEffectLayers(enemy);
 
         EnemyCombatStatsLabel.Text =
             $"HP: {enemy.HP}\n" +
             $"Attack: {enemy.Attack}\n" +
             $"Strength: {enemy.Strength}\n" +
             $"Defense: {enemy.Defense}";
+    }
+
+    private void UpdateAreaAmbientEffect()
+    {
+        if (!_isActive || !EnemySelectionView.IsVisible || _expandedTier is not EnemyTier tier)
+        {
+            AreaAmbientLayer.Stop();
+            AreaAmbientLayer.IsVisible = false;
+            return;
+        }
+
+        VisualEffectKind kind = tier switch
+        {
+            EnemyTier.Tier3 => VisualEffectKind.WeatherSnow,
+            EnemyTier.Tier4 => VisualEffectKind.WeatherEmber,
+            EnemyTier.Tier5 => VisualEffectKind.WeatherMotes,
+            EnemyTier.Tier6 or EnemyTier.Tier7 => VisualEffectKind.Shimmer,
+            _ => VisualEffectKind.Sparkle
+        };
+        AreaAmbientLayer.IsVisible = true;
+        AreaAmbientLayer.Start(kind, 2400, 14, ambient: true);
+    }
+
+    private void UpdateStatusEffectLayers(Enemy enemy)
+    {
+        EnemyTrait? trait = enemy.Traits.FirstOrDefault();
+        if (trait == null)
+        {
+            EnemyStatusEffectLayer.Stop();
+            EnemyStatusEffectLayer.IsVisible = false;
+            return;
+        }
+
+        VisualEffectKind kind = trait.Value switch
+        {
+            EnemyTrait.Regenerative => VisualEffectKind.StatusRegeneration,
+            EnemyTrait.Frenzied => VisualEffectKind.StatusFrenzy,
+            EnemyTrait.Armored => VisualEffectKind.StatusArmored,
+            _ => VisualEffectKind.StatusPoison
+        };
+        EnemyStatusEffectLayer.IsVisible = true;
+        EnemyStatusEffectLayer.Start(kind, 1800, 8, ambient: true);
     }
 
     private void UpdateHPBars()
@@ -1777,7 +1858,7 @@ public partial class CombatView : ContentView
         {
             drawable.Update(
                 hit,
-                hit ? $"-{e.Damage}" : "MISS");
+                hit ? $"-{e.Damage}" : "0");
             hitSplat.Invalidate();
         }
 
@@ -1799,7 +1880,7 @@ public partial class CombatView : ContentView
                 hitSplat,
                 "hitSplatMove",
                 16,
-                450,
+                HitSplatAnimationMilliseconds,
                 Easing.CubicOut);
 
         new Animation(
@@ -1810,7 +1891,7 @@ public partial class CombatView : ContentView
                 hitSplat,
                 "hitSplatFade",
                 16,
-                450,
+                HitSplatAnimationMilliseconds,
                 Easing.CubicIn);
     }
 
@@ -1840,7 +1921,7 @@ public partial class CombatView : ContentView
 
             UpdateEnemyKillCount(enemy);
 
-            _ = PlayEnemyDefeatAnimation();
+            _ = PlayEnemyDefeatAnimation(enemy);
 
             SetAttackProgress(0, 0);
 
@@ -1849,6 +1930,22 @@ public partial class CombatView : ContentView
 
             LootResults.IsVisible = true;
             BuildLootResults(enemy, loot);
+            if (loot.Count > 0)
+            {
+                VisualEffects.PlayParticles(
+                    DamagePopupLayer,
+                    VisualEffectKind.Sparkle,
+                    durationMilliseconds: 800,
+                    particleCount: 14);
+                if (loot.Any(result => result.Chance <= 0.01))
+                {
+                    VisualEffects.PlayParticles(
+                        DamagePopupLayer,
+                        VisualEffectKind.Shimmer,
+                        durationMilliseconds: 1100,
+                        particleCount: 18);
+                }
+            }
             UpdateHPBars();
 
             if (_combatManager.IsAutoFightEnabled)
@@ -1885,6 +1982,11 @@ public partial class CombatView : ContentView
                 return;
 
             _ = PlayAutoEatFeedbackAsync(e);
+            VisualEffects.PlayParticles(
+                DamagePopupLayer,
+                VisualEffectKind.FoodHeal,
+                durationMilliseconds: 650,
+                particleCount: 12);
         });
     }
 
@@ -1975,10 +2077,21 @@ public partial class CombatView : ContentView
     }
 
 
-    private async Task PlayEnemyDefeatAnimation()
+    private async Task PlayEnemyDefeatAnimation(Enemy enemy)
     {
         try
         {
+            VisualEffects.PlayParticles(
+                DamagePopupLayer,
+                enemy.Traits.FirstOrDefault() switch
+                {
+                    EnemyTrait.Regenerative => VisualEffectKind.FoodHeal,
+                    EnemyTrait.Armored or EnemyTrait.Accurate => VisualEffectKind.Shimmer,
+                    EnemyTrait.Frenzied => VisualEffectKind.Burst,
+                    _ => VisualEffectKind.Burst
+                },
+                durationMilliseconds: 700,
+                particleCount: 18);
             await Task.WhenAll(
                 EnemyPanel.FadeToAsync(0.35, 80),
                 EnemyPanel.TranslateToAsync(-8, 0, 45));

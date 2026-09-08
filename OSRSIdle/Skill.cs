@@ -6,7 +6,9 @@ public class Skill
 
     public string Icon { get; set; }
 
-    public string IconImage => Name.ToLowerInvariant() switch
+    public string IconImage => GetIconImage(Name);
+
+    public static string GetIconImage(string name) => name.ToLowerInvariant() switch
     {
         "fishing" => "skill_fishing.png",
         "mining" => "skill_mining.png",

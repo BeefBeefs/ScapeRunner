@@ -17,6 +17,11 @@
             VerticalOptions="Fill"
             InputTransparent="True" />
 
+        <!-- Reused drawable for low-cost area ambience/weather. -->
+        <local:ParticleEffectView
+            x:Name="AreaAmbientLayer"
+            IsVisible="False" />
+
         <!-- Enemy selection screen -->
         <ScrollView
             BackgroundColor="Transparent"
@@ -110,6 +115,10 @@
                                     <Grid
                                         x:Name="EnemyHitSplatLayer"
                                         InputTransparent="True" />
+
+                                    <local:ParticleEffectView
+                                        x:Name="EnemyStatusEffectLayer"
+                                        IsVisible="False" />
 
                                 </Grid>
 
@@ -271,6 +280,10 @@
                                 BackgroundColor="#8BFF9D"
                                 Opacity="0"
                                 AnchorX="0" />
+
+                            <local:ParticleEffectView
+                                x:Name="PlayerStatusEffectLayer"
+                                IsVisible="False" />
 
                             <Label
                                 x:Name="PlayerHPLabel"

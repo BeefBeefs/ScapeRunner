@@ -217,6 +217,10 @@
 
     </ScrollView>
 
+    <Grid
+        x:Name="CollectionEffectLayer"
+        InputTransparent="True" />
+
     </Grid>
 
 </ContentView>

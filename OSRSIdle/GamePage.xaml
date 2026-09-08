@@ -147,12 +147,18 @@
                         HeightRequest="150">
 
                         <ScrollView>
-                            <Label
-                                x:Name="OfflineCombatLootLabel"
-                                Text="No loot yet."
-                                FontSize="15"
-                                TextColor="#FFE26A"
-                                HorizontalTextAlignment="Center" />
+                            <VerticalStackLayout
+                                x:Name="OfflineCombatLootList"
+                                Spacing="4"
+                                HorizontalOptions="Center">
+
+                                <Label
+                                    Text="No loot yet."
+                                    FontSize="15"
+                                    TextColor="#FFE26A"
+                                    HorizontalTextAlignment="Center" />
+
+                            </VerticalStackLayout>
                         </ScrollView>
 
                     </Border>
@@ -236,11 +242,10 @@
                         TextColor="#FFE26A"
                         HorizontalOptions="Center" />
 
-                    <Label
-                        x:Name="OfflineSkillingRewardsLabel"
-                        FontSize="16"
-                        TextColor="#FFE26A"
-                        HorizontalTextAlignment="Center" />
+                    <VerticalStackLayout
+                        x:Name="OfflineSkillingRewardsList"
+                        Spacing="5"
+                        HorizontalOptions="Center" />
 
                     <local:GoldSliceButton
                         Text="Continue"

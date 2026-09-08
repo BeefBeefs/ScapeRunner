@@ -60,6 +60,16 @@ internal static class PerformanceSmokeTests
     private static IDictionary States(object target, string field) =>
         (IDictionary)target.GetType().GetField(field, Private)!.GetValue(target)!;
 
+    private static string AreaCompletionText(
+        CombatView view,
+        EnemyTier tier)
+    {
+        object section = States(view, "_tierSections")[tier]!;
+        Label label = (Label)section.GetType()
+            .GetProperty("CompletionLabel")!.GetValue(section)!;
+        return label.Text ?? string.Empty;
+    }
+
     private static void CheckRarities()
     {
         var allDrops = StartupDataCache.Enemies.SelectMany(enemy => enemy.DropTable.Drops).ToArray();
@@ -158,6 +168,33 @@ internal static class PerformanceSmokeTests
         player.Inventory.RemoveItem(food, player.Inventory.GetQuantity(food));
         await Task.Delay(100);
         Check(grid.Children.Count == 1 && Labels(grid).Any(label => label.Text == "No food yet."), "Removed item releases its slot");
+
+        Item[] foodSortItems = StartupDataCache.Items
+            .Where(item => item.Type == ItemType.Food && item.HealingAmount > 0)
+            .OrderBy(item => item.HealingAmount)
+            .ThenBy(item => item.Name)
+            .Take(2)
+            .ToArray();
+        player.Inventory.AddItem(foodSortItems[1], 1);
+        player.Inventory.AddItem(foodSortItems[0], 1);
+        await Task.Delay(100);
+        List<(InventoryItem Item, Border Card)> foodSlots = States(inventory, "_slots")
+            .Cast<object>()
+            .Select(entry =>
+            {
+                InventoryItem item = (InventoryItem)entry.GetType()
+                    .GetProperty("Key")!.GetValue(entry)!;
+                object slot = entry.GetType()
+                    .GetProperty("Value")!.GetValue(entry)!;
+                Border card = (Border)slot.GetType()
+                    .GetProperty("Card")!.GetValue(slot)!;
+                return (Item: item, Card: card);
+            })
+            .OrderBy(entry => Grid.GetRow(entry.Card))
+            .ThenBy(entry => Grid.GetColumn(entry.Card))
+            .ToList();
+        Check(foodSlots.Select(entry => entry.Item.Item).SequenceEqual(foodSortItems),
+            "Food tab defaults to lowest healing first");
         inventory.Dispose();
 
         using ActivityManager activity = new(player);
@@ -242,10 +279,31 @@ internal static class PerformanceSmokeTests
         collection.FindByName<Switch>("HideCompletedSwitch").IsToggled = false;
         Check(await collection.OpenEnemyAsync(enemy, false), "Filter restores enemy details");
         collection.Dispose();
+        await Task.Delay(100);
 
         CombatView combatView = new(player, combat);
         host.Content = combatView;
         combatView.PreloadEnemyList();
+        Enemy overviewEnemy = StartupDataCache.Enemies.First(entry =>
+            !player.CollectionLog.IsComplete(entry));
+        Drop overviewDrop = overviewEnemy.DropTable.Drops.First(drop =>
+            !player.CollectionLog.HasReceivedDrop(overviewEnemy, drop.Item));
+        string completionBefore = AreaCompletionText(combatView, overviewEnemy.Tier);
+        player.CollectionLog.RecordDrops(
+            overviewEnemy,
+            new[]
+            {
+                new LootResult(
+                    overviewDrop.Item,
+                    1,
+                    overviewDrop.Chance,
+                    overviewDrop.Rarity)
+            });
+        combatView.RefreshEnemyList();
+        string completionAfter = AreaCompletionText(combatView, overviewEnemy.Tier);
+        Check(completionAfter != completionBefore &&
+              !completionAfter.EndsWith("0%", StringComparison.Ordinal),
+            "Area overview refreshes collection completion percentage");
         combatView.SetActive(true);
         await Task.Delay(200);
         GraphicsView playerHitSplat = (GraphicsView)combatView.GetType()
@@ -277,6 +335,22 @@ internal static class PerformanceSmokeTests
         combatView.StartCombatNow(enemy);
         await Task.Delay(800);
         Check(combat.IsInCombat, "Live combat runs with native UI");
+
+        // Collection navigation must remain safe while the combat loop is
+        // still active. This also exercises the collection view's deferred
+        // automatic scroll of the current enemy.
+        Enemy combatLogEnemy = StartupDataCache.Enemies.First(entry =>
+            !ReferenceEquals(entry, enemy));
+        CollectionLogView collectionDuringCombat =
+            new(player.CollectionLog, _ => { });
+        combatView.SetActive(false);
+        host.Content = collectionDuringCombat;
+        collectionDuringCombat.SetActive(true);
+        Check(await collectionDuringCombat.OpenEnemyAsync(combatLogEnemy, false),
+            "Collection log opens during active combat");
+        Check(combat.IsInCombat, "Collection navigation does not stop combat");
+        collectionDuringCombat.Dispose();
+
         combatView.SetActive(false);
         combat.AbortCombatEncounter();
         combat.SetAutoFightEnabled(true);
@@ -284,6 +358,7 @@ internal static class PerformanceSmokeTests
         Check(combat.IsAutoFightRespawning && combat.AutoFightTicksRemaining == 12, "Auto-fight respawn state");
         combat.ClearAutoFightRespawn();
         combatView.Dispose();
+        await Task.Delay(100);
 
         SettingsView settings = new(() => { }, () => { }, () => { });
         host.Content = settings;
@@ -310,6 +385,39 @@ internal static class PerformanceSmokeTests
         Check(inventoryNotifications == 1 &&
               offlinePlayer.CollectionLog.GetKillCount(enemy) == simulation.Kills,
             "Offline combat batches notifications without losing rewards");
+
+        // A one-kill run makes the attempt count deterministic. Verify that
+        // offline combat records the awarded drop's own effective chance and
+        // source text, rather than relying on a UI-only loot result.
+        DebugSettings.SetInstakillEnabled(true);
+        try
+        {
+            OfflineCombatSimulation luckSimulation =
+                CreateOfflineCombatBenchmark(enemy, out Player luckPlayer);
+            luckSimulation.Advance(enemy.AttackSpeedTicks / 2);
+            LuckiestDrop luckiestDrop = luckPlayer.LuckiestDrop;
+            Drop? recordedDrop = enemy.DropTable.Drops.FirstOrDefault(drop =>
+                drop.Item.Name == luckiestDrop.ItemName);
+            Check(luckSimulation.Kills == 1,
+                "Offline luck test completes its first kill");
+            Check(luckiestDrop.IsValid &&
+                  recordedDrop != null &&
+                  luckSimulation.Loot.ContainsKey(recordedDrop.Item),
+                $"Offline luck test records the awarded item " +
+                $"(actual '{luckiestDrop.ItemName}')");
+            Check(luckiestDrop.Attempts == 1 &&
+                  recordedDrop != null &&
+                  luckiestDrop.Chance == Math.Clamp(
+                      recordedDrop.Chance * (1d + luckPlayer.GlobalDropBoostPercent / 100d),
+                      0d,
+                      1d) &&
+                  luckiestDrop.Source == $"{enemy.Name} kills",
+                "Offline combat records the luckiest drop");
+        }
+        finally
+        {
+            DebugSettings.SetInstakillEnabled(false);
+        }
 
         OfflineCombatSimulation cancelledSimulation =
             CreateOfflineCombatBenchmark(enemy, out Player cancellationPlayer);

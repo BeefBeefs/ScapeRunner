@@ -86,6 +86,17 @@ public partial class SkillPage : ContentView
                 _activityCards.TryGetValue(activity, out ActivityCardUI? card))
             {
                 _ = PlayActionCompleteFeedbackAsync(card);
+                _ = VisualEffects.ShowFloatingTextAsync(
+                    SkillEffectLayer,
+                    $"+{activity.XP * CombatRules.GetSkillXpMultiplier(_skill):N0} XP",
+                    Color.FromArgb("#FFE26A"),
+                    0.5,
+                    0.18);
+                VisualEffects.PlayParticles(
+                    ActivityList,
+                    VisualEffectKind.Sparkle,
+                    durationMilliseconds: 650,
+                    particleCount: 10);
             }
         });
     }

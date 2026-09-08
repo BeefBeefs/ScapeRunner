@@ -231,7 +231,10 @@ public sealed class GoldSliceButton : ContentView
         tapGesture.Tapped += (sender, e) =>
         {
             if (IsEnabled)
+            {
+                _ = VisualEffects.PulseAsync(this, 0.96, 55);
                 Clicked?.Invoke(this, EventArgs.Empty);
+            }
         };
 
         GestureRecognizers.Add(tapGesture);

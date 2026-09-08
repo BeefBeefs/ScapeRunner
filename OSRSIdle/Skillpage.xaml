@@ -70,6 +70,10 @@
 
         </ScrollView>
 
+        <AbsoluteLayout
+            x:Name="SkillEffectLayer"
+            InputTransparent="True" />
+
     </Grid>
 
 </ContentView>

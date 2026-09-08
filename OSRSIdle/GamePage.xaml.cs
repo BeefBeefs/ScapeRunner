@@ -341,7 +341,14 @@ public partial class GamePage : ContentPage
         OfflineCombatTitleLabel.Text =
             $"SIMULATING {simulation.Enemy.Name.ToUpperInvariant()}";
         OfflineCombatResultLabel.Text = "";
-        OfflineCombatLootLabel.Text = "No loot yet.";
+        OfflineCombatLootList.Children.Clear();
+        OfflineCombatLootList.Children.Add(new Label
+        {
+            Text = "No loot yet.",
+            FontSize = 15,
+            TextColor = Color.FromArgb("#FFE26A"),
+            HorizontalTextAlignment = TextAlignment.Center
+        });
         OfflineCombatContinueButton.IsEnabled = false;
         OfflineCombatContinueButton.Text = "Simulating...";
         OfflineCombatContinueButton.Variant = GoldSliceButtonVariant.Neutral;
@@ -452,31 +459,45 @@ public partial class GamePage : ContentPage
                 0,
                 1);
 
+        OfflineCombatLootList.Children.Clear();
+
         if (simulation.Loot.Count == 0)
         {
-            OfflineCombatLootLabel.FormattedText = null;
-            OfflineCombatLootLabel.Text = "No loot yet.";
-            OfflineCombatLootLabel.TextColor = Color.FromArgb("#FFE26A");
+            OfflineCombatLootList.Children.Add(new Label
+            {
+                Text = "No loot yet.",
+                FontSize = 15,
+                TextColor = Color.FromArgb("#FFE26A"),
+                HorizontalTextAlignment = TextAlignment.Center
+            });
             return;
         }
-
-        FormattedString lootText = new();
 
         foreach (KeyValuePair<Item, long> entry in simulation.Loot
             .OrderByDescending(entry => entry.Value)
             .ThenBy(entry => entry.Key.Name))
         {
-            lootText.Spans.Add(new Span
+            DropRarity rarity = simulation.LootRarities[entry.Key];
+            HorizontalStackLayout lootRow = new()
+            {
+                Spacing = 6,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center
+            };
+
+            lootRow.Children.Add(
+                RarityVisuals.CreateItemVisual(entry.Key, 22, rarityOverride: rarity));
+            lootRow.Children.Add(new Label
             {
                 Text =
                     $"{(simulation.NewCollectionItems.Contains(entry.Key) ? "*NEW* " : "")}" +
-                    $"{entry.Key.Icon} {entry.Key.Name} × {entry.Value:N0}\n",
-                TextColor = GetRarityColor(simulation.LootRarities[entry.Key])
+                    $"{entry.Key.Name} × {entry.Value:N0}",
+                FontSize = 15,
+                TextColor = GetRarityColor(rarity),
+                VerticalOptions = LayoutOptions.Center
             });
+            OfflineCombatLootList.Children.Add(lootRow);
         }
-
-        OfflineCombatLootLabel.Text = "";
-        OfflineCombatLootLabel.FormattedText = lootText;
     }
 
     private void OnOfflineCombatCancelClicked(
@@ -572,20 +593,21 @@ public partial class GamePage : ContentPage
         OfflineSkillingSummaryLabel.Text =
             BuildOfflineSummaryMessage(summary);
 
-        FormattedString rewards = new();
-
-        rewards.Spans.Add(new Span
+        OfflineSkillingRewardsList.Children.Clear();
+        OfflineSkillingRewardsList.Children.Add(new Label
         {
             Text = $"{summary.XPGranted:N0} {summary.SkillName} XP\n",
+            FontSize = 16,
             TextColor = Color.FromArgb("#FFE26A")
         });
 
         if (summary.EndingLevel > summary.StartingLevel)
         {
-            rewards.Spans.Add(new Span
+            OfflineSkillingRewardsList.Children.Add(new Label
             {
                 Text = $"Level up! {summary.SkillName} " +
                        $"{summary.StartingLevel}->{summary.EndingLevel}\n",
+                FontSize = 16,
                 TextColor = Color.FromArgb("#62C7FF")
             });
         }
@@ -593,38 +615,79 @@ public partial class GamePage : ContentPage
         if (!string.IsNullOrWhiteSpace(summary.ItemName) &&
             summary.ItemQuantity > 0)
         {
-            rewards.Spans.Add(new Span
-            {
-                Text = $"{summary.ItemQuantity:N0} {summary.ItemName}\n",
-                TextColor = Color.FromArgb("#FFE26A")
-            });
+            Item? rewardItem = StartupDataCache.FindItem(summary.ItemName);
+            AddOfflineItemSummaryRow(
+                OfflineSkillingRewardsList,
+                rewardItem,
+                $"{summary.ItemQuantity:N0} {summary.ItemName}",
+                Color.FromArgb("#FFE26A"));
         }
 
         Skill? skill = Player.Skills.FirstOrDefault(item => item.Name == summary.SkillName);
         SkillActivity? activity = skill?.Activities.FirstOrDefault(item => item.Name == summary.ActivityName);
         if (activity != null)
         {
-            rewards.Spans.Add(new Span
+            OfflineSkillingRewardsList.Children.Add(new Label
             {
                 Text = $"Rate: {ActivityMetrics.FormatRate(ActivityMetrics.XpPerHour(activity))} XP/hr" +
                        (activity.ItemReward == null
                            ? "\n"
                            : $" • {ActivityMetrics.FormatRate(ActivityMetrics.ItemsPerHour(activity))}/hr {activity.ItemReward.Name}\n"),
+                FontSize = 16,
                 TextColor = Color.FromArgb("#62C7FF")
             });
         }
 
         if (!string.IsNullOrWhiteSpace(summary.PetName))
         {
-            rewards.Spans.Add(new Span { Text = "*NEW* Skilling pet: " });
-            FormattedString petText = RarityVisuals.RainbowText($"{summary.PetName}!");
-            foreach (Span span in petText.Spans)
-                rewards.Spans.Add(span);
+            Item? petItem = StartupDataCache.FindItem(summary.PetName);
+            AddOfflineItemSummaryRow(
+                OfflineSkillingRewardsList,
+                petItem,
+                $"*NEW* Skilling pet: {summary.PetName}!",
+                null,
+                rainbowText: true);
         }
 
-        OfflineSkillingRewardsLabel.Text = "";
-        OfflineSkillingRewardsLabel.FormattedText = rewards;
         OfflineSkillingOverlay.IsVisible = true;
+    }
+
+    private static void AddOfflineItemSummaryRow(
+        VerticalStackLayout host,
+        Item? item,
+        string text,
+        Color? textColor,
+        bool rainbowText = false)
+    {
+        HorizontalStackLayout row = new()
+        {
+            Spacing = 6,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        if (item != null)
+        {
+            row.Children.Add(
+                RarityVisuals.CreateItemVisual(item, 22));
+        }
+
+        Label label = new()
+        {
+            FontSize = 16,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        if (rainbowText)
+            label.FormattedText = RarityVisuals.RainbowText(text);
+        else
+        {
+            label.Text = text;
+            label.TextColor = textColor ?? Colors.White;
+        }
+
+        row.Children.Add(label);
+        host.Children.Add(row);
     }
 
     private static Color GetRarityColor(DropRarity rarity)
@@ -915,9 +978,6 @@ public partial class GamePage : ContentPage
         _homeView?.SetActive(false);
         DeactivateCachedViews();
 
-        bool refreshExistingCombatView =
-            _combatView?.HasBeenDisplayed == true;
-
         if (_combatView == null)
         {
             _combatView = new CombatView(
@@ -929,9 +989,10 @@ public partial class GamePage : ContentPage
         _combatView.SetActive(true);
         GameContent.Content = _combatView;
 
-        if (refreshExistingCombatView)
-            _combatView.RefreshEnemyList();
-
+        // The combat view can be preloaded before saved collection data is
+        // restored. Refresh on every activation so area completion banners do
+        // not retain the empty-log values from preloading.
+        _combatView.RefreshEnemyList();
         _combatView.RefreshCombatDisplay();
 
         UpdateNavigationAppearance(CombatNavigationButton);
@@ -970,10 +1031,9 @@ public partial class GamePage : ContentPage
                 Player.CollectionLog,
                 StartCombatFromCollection);
 
+        GameContent.Content = _collectionLogView;
         _collectionLogView.SetActive(true);
         _collectionLogView.RefreshDisplay();
-
-        GameContent.Content = _collectionLogView;
 
         Enemy? activeEnemy =
             CombatManager.CurrentEnemy;
@@ -1655,6 +1715,11 @@ public partial class GamePage : ContentPage
         try
         {
             await AddCenteredNotificationAsync(levelUpPopup, cancellationToken: cancellationToken);
+            VisualEffects.PlayParticles(
+                NotificationLayer,
+                VisualEffectKind.Burst,
+                durationMilliseconds: 1050,
+                particleCount: 24);
 
             await Task.WhenAll(
                 levelUpPopup.FadeToAsync(1, 180),
@@ -1766,6 +1831,11 @@ public partial class GamePage : ContentPage
         try
         {
             await AddCenteredNotificationAsync(lootPopup, cancellationToken: cancellationToken);
+            VisualEffects.PlayParticles(
+                NotificationLayer,
+                VisualEffectKind.RareDrop,
+                durationMilliseconds: 1250,
+                particleCount: loot.Chance <= 0.001 ? 30 : 20);
 
             await Task.WhenAll(
                 lootPopup.FadeToAsync(1, 140),

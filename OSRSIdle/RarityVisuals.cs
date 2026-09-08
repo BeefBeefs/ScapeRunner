@@ -69,6 +69,20 @@ public static class RarityVisuals
         return visual;
     }
 
+    public static Border CreateUndiscoveredItemVisual(
+        double size)
+    {
+        return new Border
+        {
+            WidthRequest = size,
+            HeightRequest = size,
+            BackgroundColor = Colors.Black,
+            Stroke = Color.FromArgb("#FF000000"),
+            StrokeThickness = 1,
+            InputTransparent = true
+        };
+    }
+
     public static void ReplaceImage(
         Grid host,
         Image image,

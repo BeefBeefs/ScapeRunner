@@ -9,6 +9,7 @@ public partial class CollectionLogView : ContentView
 
     private bool _hideCompleted;
     private bool _isActive;
+    private int _activationGeneration;
 
     private readonly Dictionary<Enemy, EnemyCardState> _enemyCards = new();
 
@@ -47,6 +48,7 @@ public partial class CollectionLogView : ContentView
             return;
 
         _isActive = active;
+        _activationGeneration++;
 
         if (active)
         {
@@ -110,6 +112,12 @@ public partial class CollectionLogView : ContentView
 
             foreach (Enemy enemy in StartupDataCache.GetEnemiesDropping(item))
                 UpdateEnemyCard(enemy);
+
+            VisualEffects.PlayParticles(
+                CollectionEffectLayer,
+                VisualEffectKind.Burst,
+                durationMilliseconds: 850,
+                particleCount: 16);
 
             if (_selectedEnemy?.DropTable.Drops.Any(drop => drop.Item == item) == true)
                 ShowEnemyDetails(_selectedEnemy);
@@ -182,7 +190,7 @@ public partial class CollectionLogView : ContentView
                 {
                     Text = obtained
                         ? $"{pet.Item.Name} — {pet.SkillName}"
-                        : $"{pet.SkillIcon} ??? — {pet.SkillName}",
+                        : $"??? — {pet.SkillName}",
                     FontSize = 16,
                     TextColor = obtained
                         ? Colors.White
@@ -190,12 +198,6 @@ public partial class CollectionLogView : ContentView
                     VerticalOptions = LayoutOptions.Center,
                     TranslationY = 3
                 };
-
-            if (!obtained)
-            {
-                SkillingPetList.Children.Add(petLabel);
-                continue;
-            }
 
             SkillingPetList.Children.Add(
                 new HorizontalStackLayout
@@ -205,10 +207,13 @@ public partial class CollectionLogView : ContentView
                     {
                         new Image
                         {
-                            Source = pet.Item.IconImage,
+                            Source = obtained
+                                ? pet.Item.IconImage
+                                : Skill.GetIconImage(pet.SkillName),
                             WidthRequest = 20,
                             HeightRequest = 20,
-                            Aspect = Aspect.AspectFit
+                            Aspect = Aspect.AspectFit,
+                            Opacity = obtained ? 1 : 0.65
                         },
                         petLabel
                     }
@@ -326,8 +331,26 @@ public partial class CollectionLogView : ContentView
         if (!_enemyCards.TryGetValue(enemy, out EnemyCardState? state) || !state.Card.IsVisible)
             return false;
 
+        int activationGeneration = _activationGeneration;
         _selectedEnemy = enemy;
         ShowEnemyDetails(enemy);
+
+        // A collection log can be opened while combat is still running. The
+        // view is attached to the page before its native ScrollView has
+        // necessarily completed its first layout, so scrolling immediately can
+        // race the Windows handler. The details are already visible; delay
+        // only the optional automatic scroll until the view is settled.
+        await Task.Delay(35);
+
+        if (!_isActive ||
+            activationGeneration != _activationGeneration ||
+            !ReferenceEquals(_selectedEnemy, enemy) ||
+            CollectionScrollView.Width <= 0 ||
+            CollectionScrollView.Height <= 0 ||
+            EnemyDetailCard.Height <= 0)
+        {
+            return true;
+        }
 
         try
         {
@@ -454,14 +477,7 @@ public partial class CollectionLogView : ContentView
 
             View itemVisual = obtained
                 ? RarityVisuals.CreateItemVisual(drop.Item, 18)
-                : new Image
-                {
-                    Source = drop.Item.IconImage,
-                    WidthRequest = 18,
-                    HeightRequest = 18,
-                    Opacity = 0.28,
-                    Aspect = Aspect.AspectFit
-                };
+                : RarityVisuals.CreateUndiscoveredItemVisual(18);
             dropRow.Add(itemVisual, 0);
 
             Label itemLabel = new()

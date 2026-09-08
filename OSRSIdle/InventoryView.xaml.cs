@@ -48,6 +48,7 @@ public partial class InventoryView : ContentView
         InventorySortMode.Name;
 
     private bool _sortAscending = true;
+    private bool _useDefaultFoodSort;
     private bool _isActive;
     private bool _refreshPending;
     private readonly Dictionary<InventoryItem, InventorySlot> _slots = new();
@@ -125,6 +126,7 @@ public partial class InventoryView : ContentView
         object? sender,
         EventArgs e)
     {
+        _useDefaultFoodSort = false;
         SetSortMode(
             InventorySortMode.Name);
     }
@@ -138,6 +140,7 @@ public partial class InventoryView : ContentView
         object? sender,
         EventArgs e)
     {
+        _useDefaultFoodSort = false;
         SetSortMode(
             InventorySortMode.Quantity);
     }
@@ -151,6 +154,7 @@ public partial class InventoryView : ContentView
         object? sender,
         EventArgs e)
     {
+        _useDefaultFoodSort = false;
         SetSortMode(
             InventorySortMode.TotalValue);
     }
@@ -193,6 +197,7 @@ public partial class InventoryView : ContentView
         object? sender,
         EventArgs e)
     {
+        _useDefaultFoodSort = false;
         _sortAscending =
             !_sortAscending;
 
@@ -228,9 +233,13 @@ public partial class InventoryView : ContentView
                 ? "⬆ Ascending"
                 : "⬇ Descending";
 
+        bool defaultFoodSort =
+            _selectedCategory == InventoryCategory.Food &&
+            _useDefaultFoodSort;
+
         SetSortButtonAppearance(
             SortNameButton,
-            _sortMode == InventorySortMode.Name);
+            _sortMode == InventorySortMode.Name && !defaultFoodSort);
 
         SetSortButtonAppearance(
             SortQuantityButton,
@@ -239,6 +248,9 @@ public partial class InventoryView : ContentView
         SetSortButtonAppearance(
             SortValueButton,
             _sortMode == InventorySortMode.TotalValue);
+
+        if (defaultFoodSort)
+            SortNameButton.Text = "Healing ✓";
 
         SortDirectionButton.Variant = GoldSliceButtonVariant.Neutral;
     }
@@ -298,7 +310,14 @@ public partial class InventoryView : ContentView
             return;
 
         _selectedCategory = category;
+        if (category == InventoryCategory.Food)
+        {
+            _useDefaultFoodSort = true;
+            _sortMode = InventorySortMode.Name;
+            _sortAscending = true;
+        }
         UpdateCategoryTabs();
+        UpdateSortButtonText();
         UpdateInventory();
     }
 
@@ -421,70 +440,81 @@ public partial class InventoryView : ContentView
         // Sort items.
         // --------------------------------------------------------
 
-        switch (_sortMode)
+        if (_selectedCategory == InventoryCategory.Food &&
+            _useDefaultFoodSort)
         {
-            case InventorySortMode.Name:
+            sortedItems = sortedItems
+                .OrderBy(item => item.Item.HealingAmount)
+                .ThenBy(item => item.Item.Name)
+                .ToList();
+        }
+        else
+        {
+            switch (_sortMode)
+            {
+                case InventorySortMode.Name:
 
-                sortedItems =
-                    _sortAscending
+                    sortedItems =
+                        _sortAscending
 
-                        ? sortedItems
-                            .OrderBy(item =>
-                                item.Item.Name)
-                            .ToList()
+                            ? sortedItems
+                                .OrderBy(item =>
+                                    item.Item.Name)
+                                .ToList()
 
-                        : sortedItems
-                            .OrderByDescending(item =>
-                                item.Item.Name)
-                            .ToList();
+                            : sortedItems
+                                .OrderByDescending(item =>
+                                    item.Item.Name)
+                                .ToList();
 
-                break;
-
-
-            case InventorySortMode.Quantity:
-
-                sortedItems =
-                    _sortAscending
-
-                        ? sortedItems
-                            .OrderBy(item =>
-                                item.Quantity)
-                            .ThenBy(item =>
-                                item.Item.Name)
-                            .ToList()
-
-                        : sortedItems
-                            .OrderByDescending(item =>
-                                item.Quantity)
-                            .ThenBy(item =>
-                                item.Item.Name)
-                            .ToList();
-
-                break;
+                    break;
 
 
-            case InventorySortMode.TotalValue:
+                case InventorySortMode.Quantity:
 
-                sortedItems =
-                    _sortAscending
+                    sortedItems =
+                        _sortAscending
 
-                        ? sortedItems
-                            .OrderBy(item =>
-                                item.Item.Value *
-                                item.Quantity)
-                            .ThenBy(item =>
-                                item.Item.Name)
-                            .ToList()
+                            ? sortedItems
+                                .OrderBy(item =>
+                                    item.Quantity)
+                                .ThenBy(item =>
+                                    item.Item.Name)
+                                .ToList()
 
-                        : sortedItems
-                            .OrderByDescending(item =>
-                                item.Item.Value *
-                                item.Quantity)
-                            .ThenBy(item =>
-                                item.Item.Name)
-                            .ToList();
+                            : sortedItems
+                                .OrderByDescending(item =>
+                                    item.Quantity)
+                                .ThenBy(item =>
+                                    item.Item.Name)
+                                .ToList();
 
-                break;
+                    break;
+
+
+                case InventorySortMode.TotalValue:
+
+                    sortedItems =
+                        _sortAscending
+
+                            ? sortedItems
+                                .OrderBy(item =>
+                                    item.Item.Value *
+                                    item.Quantity)
+                                .ThenBy(item =>
+                                    item.Item.Name)
+                                .ToList()
+
+                            : sortedItems
+                                .OrderByDescending(item =>
+                                    item.Item.Value *
+                                    item.Quantity)
+                                .ThenBy(item =>
+                                    item.Item.Name)
+                                .ToList();
+
+                    break;
+            }
         }
 
 
@@ -859,6 +889,12 @@ public partial class InventoryView : ContentView
         tapGesture.Tapped +=
             (sender, e) =>
             {
+                _ = VisualEffects.PulseAsync(itemSlot, 1.06, 70);
+                VisualEffects.PlayParticles(
+                    slotContent,
+                    VisualEffectKind.Sparkle,
+                    durationMilliseconds: 450,
+                    particleCount: 8);
                 DisplayItemInfo(
                     inventoryItem);
             };
