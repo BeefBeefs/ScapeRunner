@@ -28,6 +28,7 @@ internal static class PerformanceSmokeTests
         {
             Check(StartupDataCache.IsInitialized, "Startup data validated");
             CheckRarities();
+            CheckCombatSystems();
             CheckCollection();
             CheckShadows();
             await CheckViewsAsync(host);
@@ -118,6 +119,42 @@ internal static class PerformanceSmokeTests
         log.RecordKill(source);
         Check(log.GetKillCount(source) == 1, "Kills remain independent of discoveries");
         Benchmark("10000 cached completion lookups", () => { for (int i = 0; i < 10000; i++) _ = log.GetCompletedEnemyCount(); });
+    }
+
+    private static void CheckCombatSystems()
+    {
+        Player player = new();
+        Item[] filler = StartupDataCache.Items
+            .Where(item => item.Type is not (ItemType.Pet or ItemType.Currency))
+            .Take(player.Inventory.SlotCapacity)
+            .ToArray();
+        foreach (Item item in filler)
+            player.Inventory.AddItem(item);
+        Item stackable = filler[0];
+        Check(player.Inventory.AddItem(stackable), "Inventory full behavior accepts an existing stack");
+        Check(player.Inventory.IsFull && player.Inventory.CanAddItem(stackable), "Full inventory recognizes mergeable stacks");
+
+        using ActivityManager activity = new(player);
+        SkillActivity locked = player.Fishing.Activities.Last();
+        activity.StartActivity(player.Fishing, locked);
+        Check(!activity.IsActive, "Locked activities cannot start through the model");
+
+        Enemy enemy = StartupDataCache.Enemies[0];
+        using CombatManager combat = new(player);
+        combat.StartCombat(enemy);
+        combat.SetCombatStyle(enemy.Weakness);
+        CombatAbility ability = enemy.Weakness switch
+        {
+            CombatStyle.Attack => CombatAbility.PreciseStrike,
+            CombatStyle.Strength => CombatAbility.PowerStrike,
+            _ => CombatAbility.Guard
+        };
+        Check(combat.ActivateAbility(ability), "Combat abilities can be primed for their style");
+        Check(combat.PrimedAbility == ability, "Primed combat ability is exposed to the UI");
+        Check(CombatRules.GetWeaknessDamage(enemy, enemy.Weakness, 4) > 4, "Enemy weaknesses affect damage");
+        combat.StopCombat();
+
+        Check(ProgressionGoals.GetFor(player).Count >= 5, "Progression goals are available");
     }
 
     private static async Task CheckViewsAsync(ContentPage host)

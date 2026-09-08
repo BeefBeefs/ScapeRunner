@@ -52,6 +52,48 @@ public static class CombatRules
         return 1d + ProgressionBonuses.CombatXpPercent(player, enemy) / 100d;
     }
 
+    public static int GetPlayerAttackLevel(Player player, CombatStyle style)
+    {
+        int level = player.GetEffectiveAttackLevel();
+        return style == CombatStyle.Attack ? (int)Math.Ceiling(level * 1.10d) : level;
+    }
+
+    public static int GetPlayerStrengthLevel(Player player, CombatStyle style)
+    {
+        int level = player.GetEffectiveStrengthLevel();
+        return style == CombatStyle.Strength ? (int)Math.Ceiling(level * 1.15d) : level;
+    }
+
+    public static int GetPlayerDefenseLevel(Player player, CombatStyle style)
+    {
+        int level = player.GetEffectiveDefenseLevel();
+        return style == CombatStyle.Defense ? (int)Math.Ceiling(level * 1.15d) : level;
+    }
+
+    public static int ReduceIncomingDamage(CombatStyle style, int damage)
+    {
+        return style == CombatStyle.Defense
+            ? Math.Max(0, (int)Math.Floor(damage * 0.90d))
+            : damage;
+    }
+
+    public static bool IsWeakTo(Enemy enemy, CombatStyle style) =>
+        enemy.Weakness == style;
+
+    public static int GetWeaknessAccuracyLevel(Enemy enemy, CombatStyle style, int attackLevel)
+    {
+        return IsWeakTo(enemy, style)
+            ? (int)Math.Ceiling(attackLevel * 1.25d)
+            : attackLevel;
+    }
+
+    public static int GetWeaknessDamage(Enemy enemy, CombatStyle style, int damage)
+    {
+        return IsWeakTo(enemy, style)
+            ? Math.Max(1, (int)Math.Ceiling(damage * 1.25d))
+            : damage;
+    }
+
     public static double GetSkillXpMultiplier(Skill skill)
     {
         return GetSkillXpMultiplier(skill.Level);

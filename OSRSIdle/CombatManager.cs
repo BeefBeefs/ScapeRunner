@@ -42,6 +42,10 @@ public class CombatManager : IDisposable
     public CombatStyle CurrentCombatStyle { get; private set; } =
         CombatStyle.Attack;
 
+    public CombatAbility? PrimedAbility { get; private set; }
+
+    public int AbilityCooldownTicks { get; private set; }
+
 
     // ============================================================
     // ATTACK PROGRESS
@@ -91,6 +95,8 @@ public class CombatManager : IDisposable
     public event Action<Enemy>? EnemyDefeated;
 
     public event Action? PlayerDefeated;
+
+    public event Action? InventoryFull;
 
     public event Action? XPChanged;
 
@@ -142,7 +148,29 @@ public class CombatManager : IDisposable
         CurrentCombatStyle =
             style;
 
+        if (PrimedAbility is CombatAbility ability &&
+            ability.RequiredStyle() != style)
+        {
+            PrimedAbility = null;
+        }
+
         CombatUpdated?.Invoke();
+    }
+
+    public bool ActivateAbility(CombatAbility ability)
+    {
+        if (!IsInCombat ||
+            ability.RequiredStyle() != CurrentCombatStyle ||
+            PrimedAbility != null ||
+            AbilityCooldownTicks > 0)
+        {
+            return false;
+        }
+
+        PrimedAbility = ability;
+        AbilityCooldownTicks = CombatAbilityRules.CooldownTicks;
+        CombatUpdated?.Invoke();
+        return true;
     }
 
 
@@ -313,6 +341,8 @@ public class CombatManager : IDisposable
         EnemyAttackProgress = 0;
 
         AutoEatCooldownTicks = 0;
+        AbilityCooldownTicks = 0;
+        PrimedAbility = null;
         _autoEatElapsedMilliseconds = 0;
 
 
@@ -377,6 +407,9 @@ public class CombatManager : IDisposable
         PlayerAttackProgress = 0;
 
         EnemyAttackProgress = 0;
+
+        PrimedAbility = null;
+        AbilityCooldownTicks = 0;
 
 
         // --------------------------------------------------------
@@ -554,8 +587,10 @@ public class CombatManager : IDisposable
             // PLAYER ATTACK
             // ====================================================
 
-            if (playerElapsedMilliseconds >=
-                playerAttackMilliseconds)
+            int playerCatchUpAttacks = 0;
+            while (playerElapsedMilliseconds >=
+                   playerAttackMilliseconds &&
+                   playerCatchUpAttacks++ < 8)
             {
                 // ------------------------------------------------
                 // Preserve any extra elapsed time.
@@ -591,8 +626,10 @@ public class CombatManager : IDisposable
             // ENEMY ATTACK
             // ====================================================
 
-            if (enemyElapsedMilliseconds >=
-                enemyAttackMilliseconds)
+            int enemyCatchUpAttacks = 0;
+            while (enemyElapsedMilliseconds >=
+                   enemyAttackMilliseconds &&
+                   enemyCatchUpAttacks++ < 8)
             {
                 enemyElapsedMilliseconds -=
                     enemyAttackMilliseconds;
@@ -640,10 +677,23 @@ public class CombatManager : IDisposable
         // Roll accuracy.
         // --------------------------------------------------------
 
+        int attackLevel = CombatRules.GetWeaknessAccuracyLevel(
+            enemy,
+            CurrentCombatStyle,
+            CombatRules.GetPlayerAttackLevel(
+                Player,
+                CurrentCombatStyle));
+
+        if (PrimedAbility == CombatAbility.PreciseStrike)
+        {
+            attackLevel = (int)Math.Ceiling(attackLevel * 1.25d);
+            PrimedAbility = null;
+        }
+
         bool hit =
             DebugSettings.IsInstakillEnabled ||
             RollAccuracy(
-                Player.GetEffectiveAttackLevel(),
+                attackLevel,
                 CombatRules.GetEnemyDefenseLevel(enemy));
 
 
@@ -671,7 +721,20 @@ public class CombatManager : IDisposable
             DebugSettings.IsInstakillEnabled
                 ? enemy.CurrentHP
                 : RollDamage(
-                    Player.GetEffectiveStrengthLevel());
+                    CombatRules.GetPlayerStrengthLevel(
+                        Player,
+                        CurrentCombatStyle));
+
+        if (PrimedAbility == CombatAbility.PowerStrike)
+        {
+            damage = (int)Math.Ceiling(damage * 1.5d);
+            PrimedAbility = null;
+        }
+
+        damage = CombatRules.GetWeaknessDamage(
+            enemy,
+            CurrentCombatStyle,
+            damage);
 
         damage = CombatRules.ReducePlayerDamage(enemy, damage);
 
@@ -771,7 +834,9 @@ public class CombatManager : IDisposable
         bool hit =
             RollAccuracy(
                 CombatRules.GetEnemyAccuracyLevel(enemy),
-                Player.GetEffectiveDefenseLevel());
+                CombatRules.GetPlayerDefenseLevel(
+                    Player,
+                    CurrentCombatStyle));
 
 
         // --------------------------------------------------------
@@ -797,6 +862,14 @@ public class CombatManager : IDisposable
         int damage =
             RollDamage(
                 enemy.Strength);
+
+        damage = CombatRules.ReduceIncomingDamage(CurrentCombatStyle, damage);
+
+        if (PrimedAbility == CombatAbility.Guard)
+        {
+            damage = Math.Max(0, (int)Math.Floor(damage * 0.5d));
+            PrimedAbility = null;
+        }
 
 
         // --------------------------------------------------------
@@ -845,6 +918,9 @@ public class CombatManager : IDisposable
         {
             AutoEatCooldownTicks--;
         }
+
+        if (AbilityCooldownTicks > 0)
+            AbilityCooldownTicks--;
 
         TryAutoEat();
     }
@@ -966,6 +1042,7 @@ public class CombatManager : IDisposable
         LastLoot = Array.Empty<LootResult>();
 
         List<LootResult> awardedLoot = new();
+        bool inventoryFull = false;
 
 
         foreach (Drop drop in enemy.DropTable.Drops)
@@ -1011,6 +1088,10 @@ public class CombatManager : IDisposable
                         effectiveChance,
                         drop.Rarity));
             }
+            else
+            {
+                inventoryFull = true;
+            }
         }
 
 
@@ -1038,6 +1119,12 @@ public class CombatManager : IDisposable
         // --------------------------------------------------------
 
         StopCombat();
+
+        if (inventoryFull)
+        {
+            SetAutoFightEnabled(false);
+            InventoryFull?.Invoke();
+        }
 
 
         // --------------------------------------------------------

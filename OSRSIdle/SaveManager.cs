@@ -71,7 +71,7 @@ public static class SaveManager
                 player.PortraitIndex),
             AutoEatThresholdPercent = player.AutoEatThresholdPercent,
             InventorySlots = player.Inventory.SlotCapacity,
-            Inventory = player.Inventory.Items
+            Inventory = player.Inventory.CreateSnapshot()
                 .Select(entry => new InventorySaveItem
                 {
                     ItemName = entry.Item.Name,

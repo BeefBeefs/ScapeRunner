@@ -8,6 +8,8 @@ public partial class SkillPage : ContentView
     private readonly Dictionary<SkillActivity, ActivityCardUI> _activityCards = new();
     private IDispatcherTimer? _trainingProgressTimer;
     private bool _isActive;
+    private readonly UiUpdateCoalescer _uiUpdates;
+    private SkillActivity? _pendingFeedbackActivity;
 
     public SkillPage(
         Skill skill,
@@ -17,6 +19,7 @@ public partial class SkillPage : ContentView
 
         _skill = skill;
         _activityManager = activityManager;
+        _uiUpdates = new UiUpdateCoalescer(UpdateSkillDisplay);
 
         UpdateSkillHeader();
         BuildActivityList();
@@ -43,8 +46,26 @@ public partial class SkillPage : ContentView
 
     public void RefreshDisplay()
     {
+        UpdateSkillDisplay();
+    }
+
+    private void UpdateSkillDisplay()
+    {
         UpdateSkillHeader();
         UpdateActivityButtons();
+
+        SkillActivity? activity = _pendingFeedbackActivity;
+        _pendingFeedbackActivity = null;
+        if (activity != null && _activityCards.TryGetValue(activity, out ActivityCardUI? card))
+        {
+            _ = PlayActionCompleteFeedbackAsync(card);
+            _ = VisualEffects.ShowFloatingTextAsync(
+                SkillEffectLayer,
+                $"+{activity.XP * CombatRules.GetSkillXpMultiplier(_skill):N0} XP",
+                Color.FromArgb("#FFE26A"),
+                0.5,
+                0.18);
+        }
     }
 
     // ============================================================
@@ -73,32 +94,18 @@ public partial class SkillPage : ContentView
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
+        if (_isActive)
         {
-            if (!_isActive)
-                return;
+            _pendingFeedbackActivity = _activityManager.CurrentActivity;
+            _uiUpdates.Request();
+        }
+    }
 
-            UpdateSkillHeader();
-
-            UpdateActivityButtons();
-
-            if (_activityManager.CurrentActivity is SkillActivity activity &&
-                _activityCards.TryGetValue(activity, out ActivityCardUI? card))
-            {
-                _ = PlayActionCompleteFeedbackAsync(card);
-                _ = VisualEffects.ShowFloatingTextAsync(
-                    SkillEffectLayer,
-                    $"+{activity.XP * CombatRules.GetSkillXpMultiplier(_skill):N0} XP",
-                    Color.FromArgb("#FFE26A"),
-                    0.5,
-                    0.18);
-                VisualEffects.PlayParticles(
-                    ActivityList,
-                    VisualEffectKind.Sparkle,
-                    durationMilliseconds: 650,
-                    particleCount: 10);
-            }
-        });
+    public void Dispose()
+    {
+        _uiUpdates.Dispose();
+        SetActive(false);
+        StopTrainingProgressTimer();
     }
 
     // ============================================================

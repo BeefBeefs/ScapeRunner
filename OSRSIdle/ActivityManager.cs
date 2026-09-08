@@ -41,6 +41,10 @@ public class ActivityManager : IDisposable
     // Fired whenever a skill levels up.
     public event EventHandler<LevelUpEventArgs>? LevelUp;
 
+    // Fired when a requested activity cannot be started or its reward cannot
+    // be stored. The UI can explain the block instead of failing silently.
+    public event EventHandler<ActivityBlockedEventArgs>? ActivityBlocked;
+
 
     // ============================================================
     // CANCELLATION
@@ -69,6 +73,18 @@ public class ActivityManager : IDisposable
         Skill skill,
         SkillActivity activity)
     {
+        if (!skill.Activities.Contains(activity) ||
+            skill.Level < activity.RequiredLevel)
+        {
+            ActivityBlocked?.Invoke(
+                this,
+                new ActivityBlockedEventArgs(
+                    skill,
+                    activity,
+                    "Reach the required level first."));
+            return;
+        }
+
         // Stop whatever we were doing before.
         StopActivity(raiseStateChanged: false);
 
@@ -190,6 +206,21 @@ public class ActivityManager : IDisposable
             int oldLevel =
                 CurrentSkill.Level;
 
+
+            if (CurrentActivity.ItemReward != null &&
+                !_player.Inventory.CanAddItem(CurrentActivity.ItemReward))
+            {
+                Skill blockedSkill = CurrentSkill;
+                SkillActivity blockedActivity = CurrentActivity;
+                StopActivity();
+                ActivityBlocked?.Invoke(
+                    this,
+                    new ActivityBlockedEventArgs(
+                        blockedSkill,
+                        blockedActivity,
+                        $"Inventory full for {blockedActivity.ItemReward.Name}."));
+                return;
+            }
 
             // Award XP.
             CurrentSkill.AddXP(
@@ -327,6 +358,23 @@ public class ActivityManager : IDisposable
 
         _player.CollectionLog.RecordSkillingPet(
             pet.Item);
+    }
+}
+
+public sealed class ActivityBlockedEventArgs : EventArgs
+{
+    public Skill Skill { get; }
+    public SkillActivity Activity { get; }
+    public string Reason { get; }
+
+    public ActivityBlockedEventArgs(
+        Skill skill,
+        SkillActivity activity,
+        string reason)
+    {
+        Skill = skill;
+        Activity = activity;
+        Reason = reason;
     }
 }
 

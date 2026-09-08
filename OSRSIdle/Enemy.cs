@@ -82,6 +82,10 @@ public class Enemy
 
     public int CurrentHP { get; set; }
 
+    // Assigned once for the static roster. Ad-hoc enemies default to Attack
+    // so tests and tools always have a valid, visible counter style.
+    public CombatStyle Weakness { get; internal set; } = CombatStyle.Attack;
+
     // Static roster data assigns an explicit trait profile during startup.
     // A null value is retained for ad-hoc enemies created by tests or tools,
     // which continue to use the stat-based fallback in EnemyTraitRules.

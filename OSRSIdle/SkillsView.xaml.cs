@@ -9,6 +9,7 @@ public partial class SkillsView : ContentView
     private readonly Dictionary<Skill, SkillUI> _skillUI =
         new();
     private bool _isActive;
+    private readonly UiUpdateCoalescer _uiUpdates;
 
     // ============================================================
     // CONSTRUCTOR
@@ -22,6 +23,7 @@ public partial class SkillsView : ContentView
 
         _player = player;
         _activityManager = activityManager;
+        _uiUpdates = new UiUpdateCoalescer(UpdateSkillUI);
 
         BuildSkillList();
     }
@@ -47,6 +49,7 @@ public partial class SkillsView : ContentView
 
     public void Dispose()
     {
+        _uiUpdates.Dispose();
         SetActive(false);
     }
 
@@ -347,22 +350,16 @@ public partial class SkillsView : ContentView
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateSkillUI();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnActivityChanged(
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateSkillUI();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     // ============================================================

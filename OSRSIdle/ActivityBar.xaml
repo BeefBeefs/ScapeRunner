@@ -256,6 +256,47 @@
 
                 </Grid>
 
+                <Label
+                    x:Name="CombatStyleDescriptionLabel"
+                    Text=""
+                    FontSize="10"
+                    TextColor="#D99032"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center" />
+
+                <Grid
+                    ColumnDefinitions="*,*,*"
+                    ColumnSpacing="5">
+
+                    <local:GoldSliceButton
+                        x:Name="PreciseAbilityButton"
+                        Text="Precise"
+                        CenterText="True"
+                        Grid.Column="0"
+                        Clicked="OnPreciseAbilityClicked"
+                        MinimumHeightRequest="30"
+                        FontSize="10" />
+
+                    <local:GoldSliceButton
+                        x:Name="PowerAbilityButton"
+                        Text="Power"
+                        CenterText="True"
+                        Grid.Column="1"
+                        Clicked="OnPowerAbilityClicked"
+                        MinimumHeightRequest="30"
+                        FontSize="10" />
+
+                    <local:GoldSliceButton
+                        x:Name="GuardAbilityButton"
+                        Text="Guard"
+                        CenterText="True"
+                        Grid.Column="2"
+                        Clicked="OnGuardAbilityClicked"
+                        MinimumHeightRequest="30"
+                        FontSize="10" />
+
+                </Grid>
+
 
                 <Grid
                     ColumnDefinitions="*">

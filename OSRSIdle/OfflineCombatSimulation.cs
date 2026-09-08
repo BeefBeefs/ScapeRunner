@@ -52,6 +52,8 @@ public sealed class OfflineCombatSimulation
 
     public bool PlayerDied { get; private set; }
 
+    public bool InventoryFull { get; private set; }
+
     public long TicksProcessed { get; private set; }
 
     public long Kills { get; private set; }
@@ -301,11 +303,11 @@ public sealed class OfflineCombatSimulation
     private void RecalculatePlayerCombatValues()
     {
         _effectiveAttackLevel =
-            _attackLevel + _player.GetEquipmentAttackBonus();
+            CombatRules.GetPlayerAttackLevel(_player, _combatStyle);
         _effectiveStrengthLevel =
-            _strengthLevel + _player.GetEquipmentStrengthBonus();
+            CombatRules.GetPlayerStrengthLevel(_player, _combatStyle);
         _effectiveDefenseLevel =
-            _defenseLevel + _player.GetEquipmentDefenseBonus();
+            CombatRules.GetPlayerDefenseLevel(_player, _combatStyle);
         _maximumHit = Math.Max(1, _effectiveStrengthLevel / 3 + 1);
         _maximumHP = Math.Max(
             1,
@@ -368,7 +370,10 @@ public sealed class OfflineCombatSimulation
     {
         if (!DebugSettings.IsInstakillEnabled &&
             !RollAccuracy(
-                _effectiveAttackLevel,
+                CombatRules.GetWeaknessAccuracyLevel(
+                    Enemy,
+                    _combatStyle,
+                    _effectiveAttackLevel),
                 _enemyDefenseLevel))
             return;
 
@@ -382,6 +387,11 @@ public sealed class OfflineCombatSimulation
                 1,
                 (int)Math.Floor(damage * 0.85d));
         }
+
+        damage = CombatRules.GetWeaknessDamage(
+            Enemy,
+            _combatStyle,
+            damage);
 
         Enemy.CurrentHP = Math.Max(0, Enemy.CurrentHP - damage);
         double hpXP = damage * _combatXpMultiplier;
@@ -418,6 +428,9 @@ public sealed class OfflineCombatSimulation
             return;
 
         int damage = RollDamage(Enemy.Strength);
+        damage = CombatRules.ReduceIncomingDamage(
+            _combatStyle,
+            damage);
 
         _player.CurrentHP = Math.Max(0, _player.CurrentHP - damage);
 
@@ -455,7 +468,11 @@ public sealed class OfflineCombatSimulation
             int quantity = _random.Next(drop.MinQuantity, drop.MaxQuantity + 1);
 
             if (!_player.Inventory.AddItem(drop.Item, quantity))
+            {
+                InventoryFull = true;
+                IsComplete = true;
                 continue;
+            }
 
             // Keep offline combat's persistent luck tracking consistent with
             // live combat. Without this, rare drops earned while away appear

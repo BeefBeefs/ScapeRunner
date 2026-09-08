@@ -44,6 +44,8 @@ public static class EnemyTraitRules
             IReadOnlyList<EnemyTrait> profile =
                 RosterProfiles[index % RosterProfiles.Count];
             orderedEnemies[index].TraitOverride = profile;
+            orderedEnemies[index].Weakness =
+                (CombatStyle)(index % Enum.GetValues<CombatStyle>().Length);
         }
     }
 

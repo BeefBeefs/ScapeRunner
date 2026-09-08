@@ -10,6 +10,7 @@ public partial class HomeView : ContentView
 
     private bool _inventoryFullMessageShowing;
     private bool _isActive;
+    private readonly UiUpdateCoalescer _uiUpdates;
 
 
     // ============================================================
@@ -31,6 +32,8 @@ public partial class HomeView : ContentView
 
         _activityManager =
             activityManager;
+
+        _uiUpdates = new UiUpdateCoalescer(UpdateDisplay);
 
         ConfigureEquipmentSlot(HeadSlot, EquipmentSlot.Head);
         ConfigureEquipmentSlot(AmuletSlot, EquipmentSlot.Amulet);
@@ -70,6 +73,7 @@ public partial class HomeView : ContentView
 
     public void Dispose()
     {
+        _uiUpdates.Dispose();
         SetActive(false);
 
         HPXPBar.SizeChanged -= OnXPBarSizeChanged;
@@ -116,69 +120,48 @@ public partial class HomeView : ContentView
 
     private void OnXPChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateCombatXPBars();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnCombatLevelUp(
         object? sender,
         LevelUpEventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateDisplay();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnEquipmentChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateDisplay();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnActivityChanged(
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateActivityEfficiency();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnAutoEatSettingsChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateDisplay();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnLuckiestDropChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateLuckiestDropDisplay();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     private void OnCollectionChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                UpdateDisplay();
-        });
+        if (_isActive)
+            _uiUpdates.Request();
     }
 
     public void RefreshDisplay()
@@ -211,6 +194,7 @@ public partial class HomeView : ContentView
             $"Global drop boost: {_player.GlobalDropBoostPercent:0.0}%";
 
         UpdateActivityEfficiency();
+        UpdateProgressionGoals();
 
         AutoEatThresholdSlider.Value = _player.AutoEatThresholdPercent;
         AutoEatThresholdLabel.Text = $"{_player.AutoEatThresholdPercent}%";
@@ -312,6 +296,20 @@ public partial class HomeView : ContentView
             (activity.ItemReward == null
                 ? ""
                 : $"  •  {ActivityMetrics.FormatRate(ActivityMetrics.ItemsPerHour(activity))}/hr {activity.ItemReward.Name}");
+    }
+
+    private void UpdateProgressionGoals()
+    {
+        IReadOnlyList<ProgressionGoalState> goals =
+            ProgressionGoals.GetFor(_player);
+        int completed = goals.Count(goal => goal.Complete);
+        ProgressionGoalState? next = goals.FirstOrDefault(goal => !goal.Complete);
+
+        ProgressionGoalsLabel.Text = next is ProgressionGoalState goal
+            ? $"{goal.Name}: {goal.ProgressText}\n" +
+              $"{completed}/{goals.Count} goals complete"
+            : "All current goals complete! New challenges coming soon.\n" +
+              $"{completed}/{goals.Count} goals complete";
     }
 
     private void UpdateLuckiestDropDisplay()

@@ -428,7 +428,7 @@ public class Player
     public void AutoEquipBestGear(AutoEquipPriority priority)
     {
         Item[] availableItems =
-            Inventory.Items
+            Inventory.CreateSnapshot()
                 .Select(inventoryItem => inventoryItem.Item)
                 .Concat(GetEquippedItems())
                 .Where(item =>
@@ -471,7 +471,7 @@ public class Player
         }
 
         Item? bestFood =
-            Inventory.Items
+            Inventory.CreateSnapshot()
                 .Select(inventoryItem => inventoryItem.Item)
                 .Where(item =>
                     item.Type == ItemType.Food &&

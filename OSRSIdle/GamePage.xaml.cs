@@ -118,6 +118,9 @@ public partial class GamePage : ContentPage
 
         StartHealthRegenerationTimer();
         _frameRateMonitor = new FrameRateMonitor(UpdateFpsDisplay);
+#if DEBUG
+        FpsDebugOverlay.IsVisible = true;
+#endif
 
 
         // --------------------------------------------------------
@@ -142,6 +145,9 @@ public partial class GamePage : ContentPage
         ActivityManager.ActivityStateChanged +=
             OnActivityChanged;
 
+        ActivityManager.ActivityBlocked +=
+            OnActivityBlocked;
+
         CombatManager.PlayerDefeated +=
             OnPlayerDefeated;
 
@@ -159,6 +165,9 @@ public partial class GamePage : ContentPage
 
         CombatManager.CombatStarted +=
             OnCombatStarted;
+
+        CombatManager.InventoryFull +=
+            OnInventoryFull;
 
 
         // --------------------------------------------------------
@@ -246,12 +255,16 @@ public partial class GamePage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+#if DEBUG
         _frameRateMonitor.Start();
+#endif
     }
 
     protected override void OnDisappearing()
     {
+#if DEBUG
         _frameRateMonitor.Stop();
+#endif
         base.OnDisappearing();
     }
 
@@ -414,6 +427,8 @@ public partial class GamePage : ContentPage
             ? BuildOfflineCombatCancellationMessage(simulation)
             : simulation.PlayerDied
                 ? BuildOfflineCombatDeathMessage(simulation)
+                : simulation.InventoryFull
+                    ? "Combat stopped because the inventory became full."
                 : simulation.IsComplete
                     ? "Combat ended before all saved ticks were used."
                     : BuildOfflineCombatXPMessage(simulation);
@@ -422,7 +437,9 @@ public partial class GamePage : ContentPage
             BuildLevelUpSummary(simulation.GetLevelUps());
 
         _offlineCombatPlayerDied = simulation.PlayerDied;
-        _offlineAutoFightEnemy = !simulation.PlayerDied && simulation.AutoFight
+        _offlineAutoFightEnemy = !simulation.PlayerDied &&
+            !simulation.InventoryFull &&
+            simulation.AutoFight
             ? simulation.Enemy
             : null;
         _offlineRespawnAccelerationTicks = simulation.PlayerDied
@@ -872,6 +889,9 @@ public partial class GamePage : ContentPage
             $"{summary.CompletedActions:N0} times " +
             $"({summary.ActivityName}).";
 
+        if (summary.InventoryFull)
+            message += "\nTraining was paused because the inventory was full.";
+
         return message;
     }
 
@@ -1101,11 +1121,13 @@ public partial class GamePage : ContentPage
         ActivityManager.ActionCompleted -= OnActivityXPChanged;
         ActivityManager.LevelUp -= OnLevelUp;
         ActivityManager.ActivityStateChanged -= OnActivityChanged;
+        ActivityManager.ActivityBlocked -= OnActivityBlocked;
         CombatManager.PlayerDefeated -= OnPlayerDefeated;
         CombatManager.XPChanged -= _game.ScheduleSave;
         CombatManager.EnemyDefeated -= OnEnemyDefeated;
         CombatManager.LevelUp -= OnLevelUp;
         CombatManager.CombatStarted -= OnCombatStarted;
+        CombatManager.InventoryFull -= OnInventoryFull;
         Player.CollectionLog.CollectionCompleted -= OnCollectionCompleted;
 
         _notificationQueue.Dispose();
@@ -1136,6 +1158,8 @@ public partial class GamePage : ContentPage
         _activityBar?.Dispose();
 
         DeactivateCachedViews();
+        foreach (SkillPage skillPage in _skillPages.Values)
+            skillPage.Dispose();
 
         CustomDialogService.ClearHost(this);
 
@@ -1499,6 +1523,40 @@ public partial class GamePage : ContentPage
         });
     }
 
+    private void OnActivityBlocked(
+        object? sender,
+        ActivityBlockedEventArgs e)
+    {
+        if (_disposed)
+            return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _notificationQueue.Enqueue(cancellationToken =>
+                ShowStatusNotificationAsync(
+                    "ACTIVITY PAUSED",
+                    e.Reason,
+                    Color.FromArgb("#D99032"),
+                    cancellationToken));
+        });
+    }
+
+    private void OnInventoryFull()
+    {
+        if (_disposed)
+            return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _notificationQueue.Enqueue(cancellationToken =>
+                ShowStatusNotificationAsync(
+                    "INVENTORY FULL",
+                    "Auto-fight stopped. Sell or equip items to continue collecting loot.",
+                    Color.FromArgb("#FF7D7D"),
+                    cancellationToken));
+        });
+    }
+
 
     // ============================================================
     // RARE LOOT EVENT
@@ -1715,11 +1773,6 @@ public partial class GamePage : ContentPage
         try
         {
             await AddCenteredNotificationAsync(levelUpPopup, cancellationToken: cancellationToken);
-            VisualEffects.PlayParticles(
-                NotificationLayer,
-                VisualEffectKind.Burst,
-                durationMilliseconds: 1050,
-                particleCount: 24);
 
             await Task.WhenAll(
                 levelUpPopup.FadeToAsync(1, 180),
@@ -1831,11 +1884,6 @@ public partial class GamePage : ContentPage
         try
         {
             await AddCenteredNotificationAsync(lootPopup, cancellationToken: cancellationToken);
-            VisualEffects.PlayParticles(
-                NotificationLayer,
-                VisualEffectKind.RareDrop,
-                durationMilliseconds: 1250,
-                particleCount: loot.Chance <= 0.001 ? 30 : 20);
 
             await Task.WhenAll(
                 lootPopup.FadeToAsync(1, 140),
@@ -1951,6 +1999,64 @@ public partial class GamePage : ContentPage
     // ============================================================
     // CELEBRATION NOTIFICATIONS
     // ============================================================
+
+    private async Task ShowStatusNotificationAsync(
+        string title,
+        string message,
+        Color accent,
+        CancellationToken cancellationToken)
+    {
+        Border popup = new()
+        {
+            BackgroundColor = Color.FromArgb("#202020"),
+            Stroke = accent,
+            StrokeThickness = 2,
+            Padding = new Thickness(22, 14),
+            MaximumWidthRequest = 340,
+            Opacity = 0,
+            Scale = 0.92,
+            Content = new VerticalStackLayout
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new Label
+                    {
+                        Text = title,
+                        FontSize = 20,
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = accent,
+                        HorizontalTextAlignment = TextAlignment.Center
+                    },
+                    new Label
+                    {
+                        Text = message,
+                        FontSize = 14,
+                        TextColor = Colors.White,
+                        HorizontalTextAlignment = TextAlignment.Center
+                    }
+                }
+            }
+        };
+
+        try
+        {
+            await AddCenteredNotificationAsync(
+                popup,
+                cancellationToken: cancellationToken);
+            await Task.WhenAll(
+                popup.FadeToAsync(1, 120),
+                popup.ScaleToAsync(1, 160, Easing.CubicOut));
+            await Task.Delay(1800, cancellationToken);
+            await Task.WhenAll(
+                popup.FadeToAsync(0, 180),
+                popup.ScaleToAsync(0.94, 180, Easing.CubicIn));
+        }
+        finally
+        {
+            NotificationLayer.Children.Remove(popup);
+        }
+    }
 
     private async Task AddCenteredNotificationAsync(
         View notification,

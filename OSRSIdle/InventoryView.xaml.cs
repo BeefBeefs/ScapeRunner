@@ -395,7 +395,6 @@ public partial class InventoryView : ContentView
         if (_inventory.TryPurchaseNextSlot())
         {
             UpdateInventoryCapacity();
-            UpdateInventory();
         }
     }
 
@@ -890,11 +889,6 @@ public partial class InventoryView : ContentView
             (sender, e) =>
             {
                 _ = VisualEffects.PulseAsync(itemSlot, 1.06, 70);
-                VisualEffects.PlayParticles(
-                    slotContent,
-                    VisualEffectKind.Sparkle,
-                    durationMilliseconds: 450,
-                    particleCount: 8);
                 DisplayItemInfo(
                     inventoryItem);
             };

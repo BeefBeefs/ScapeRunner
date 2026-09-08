@@ -10,22 +10,40 @@ public class Inventory
 
     public List<InventoryItem> Items { get; private set; }
 
+    private readonly object _stateLock = new();
+    private readonly Dictionary<StackKey, InventoryItem> _stackIndex = new();
+    private int _usedSlots;
+
     public int SlotCapacity { get; private set; } = StartingSlotCapacity;
 
-    public int UsedSlots => Items.Count(entry =>
-        entry.Quantity > 0 &&
-        entry.Item.Type != ItemType.Pet &&
-        entry.Item.Type != ItemType.Currency);
+    public int UsedSlots
+    {
+        get
+        {
+            lock (_stateLock)
+                return _usedSlots;
+        }
+    }
 
-    public bool IsFull => UsedSlots >= SlotCapacity;
+    public bool IsFull
+    {
+        get
+        {
+            lock (_stateLock)
+                return _usedSlots >= SlotCapacity;
+        }
+    }
 
     public int NextSlotCost
     {
         get
         {
-            int purchasedSlots = SlotCapacity - StartingSlotCapacity;
-            double rawCost = 100d * Math.Pow(1.5d, purchasedSlots);
-            return (int)Math.Min(Math.Ceiling(rawCost), int.MaxValue);
+            lock (_stateLock)
+            {
+                int purchasedSlots = SlotCapacity - StartingSlotCapacity;
+                double rawCost = 100d * Math.Pow(1.5d, purchasedSlots);
+                return (int)Math.Min(Math.Ceiling(rawCost), int.MaxValue);
+            }
         }
     }
 
@@ -52,30 +70,32 @@ public class Inventory
         Item item,
         int quantity = 1)
     {
-        if (quantity <= 0)
-            return false;
-
-        InventoryItem? existingItem = FindStack(item);
-
-        if (existingItem != null)
+        lock (_stateLock)
         {
-            existingItem.Quantity += quantity;
+            if (quantity <= 0)
+                return false;
+
+            InventoryItem? existingItem = FindStack(item);
+
+            if (existingItem != null)
+            {
+                existingItem.Quantity += quantity;
+
+                NotifyChanged();
+
+                return true;
+            }
+
+            if (!CanAddItem(item))
+                return false;
+
+            Items.Add(
+                new InventoryItem(item, quantity));
+            RebuildIndex();
 
             NotifyChanged();
-
             return true;
         }
-
-        if (!CanAddItem(item))
-            return false;
-
-        Items.Add(
-            new InventoryItem(
-                item,
-                quantity));
-
-        NotifyChanged();
-        return true;
     }
 
 
@@ -87,34 +107,36 @@ public class Inventory
         Item item,
         int quantity = 1)
     {
-        if (quantity <= 0)
-            return false;
+        lock (_stateLock)
+        {
+            if (quantity <= 0)
+                return false;
 
 
-        InventoryItem? existingItem = FindStack(item);
+            InventoryItem? existingItem = FindStack(item);
 
 
         // --------------------------------------------------------
         // Item doesn't exist.
         // --------------------------------------------------------
 
-        if (existingItem == null)
-            return false;
+            if (existingItem == null)
+                return false;
 
 
         // --------------------------------------------------------
         // Not enough items.
         // --------------------------------------------------------
 
-        if (existingItem.Quantity < quantity)
-            return false;
+            if (existingItem.Quantity < quantity)
+                return false;
 
 
         // --------------------------------------------------------
         // Remove quantity.
         // --------------------------------------------------------
 
-        existingItem.Quantity -= quantity;
+            existingItem.Quantity -= quantity;
 
 
         // --------------------------------------------------------
@@ -122,14 +144,16 @@ public class Inventory
         // there are none left.
         // --------------------------------------------------------
 
-        if (existingItem.Quantity <= 0)
-        {
-            Items.Remove(existingItem);
+            if (existingItem.Quantity <= 0)
+            {
+                Items.Remove(existingItem);
+                RebuildIndex();
+            }
+
+            NotifyChanged();
+
+            return true;
         }
-
-        NotifyChanged();
-
-        return true;
     }
 
 
@@ -140,14 +164,17 @@ public class Inventory
     public int GetQuantity(
         Item item)
     {
-        InventoryItem? existingItem = FindStack(item);
+        lock (_stateLock)
+        {
+            InventoryItem? existingItem = FindStack(item);
 
 
-        if (existingItem == null)
-            return 0;
+            if (existingItem == null)
+                return 0;
 
 
-        return existingItem.Quantity;
+            return existingItem.Quantity;
+        }
     }
 
 
@@ -164,18 +191,21 @@ public class Inventory
 
     public bool TryCombineEquipment(Item item, out Item upgradedItem)
     {
-        upgradedItem = item;
-        if (item.Type != ItemType.Equipment || item.UpgradeLevel >= 10)
-            return false;
-
-        if (!TryCombineEquipmentInternal(item, out upgradedItem))
+        lock (_stateLock)
         {
             upgradedItem = item;
-            return false;
-        }
+            if (item.Type != ItemType.Equipment || item.UpgradeLevel >= 10)
+                return false;
 
-        NotifyChanged();
-        return true;
+            if (!TryCombineEquipmentInternal(item, out upgradedItem))
+            {
+                upgradedItem = item;
+                return false;
+            }
+
+            NotifyChanged();
+            return true;
+        }
     }
 
     /// <summary>
@@ -184,7 +214,9 @@ public class Inventory
     /// </summary>
     public bool TryCombineAllEquipment(out int combinedPairs)
     {
-        combinedPairs = 0;
+        lock (_stateLock)
+        {
+            combinedPairs = 0;
 
         while (true)
         {
@@ -228,7 +260,8 @@ public class Inventory
         if (combinedPairs > 0)
             NotifyChanged();
 
-        return combinedPairs > 0;
+            return combinedPairs > 0;
+        }
     }
 
     private bool TryCombineEquipmentInternal(
@@ -270,7 +303,9 @@ public class Inventory
         Item item,
         out EquipmentCombineAllResult result)
     {
-        result = EquipmentCombineAllResult.None;
+        lock (_stateLock)
+        {
+            result = EquipmentCombineAllResult.None;
 
         if (item.Type != ItemType.Equipment || item.UpgradeLevel >= 10)
             return false;
@@ -285,7 +320,8 @@ public class Inventory
         }
 
         NotifyChanged();
-        return true;
+            return true;
+        }
     }
 
     private bool TryCombineAllEquipmentInternal(
@@ -353,15 +389,25 @@ public class Inventory
 
     public void Clear()
     {
-        Items.Clear();
-        NotifyChanged();
+        lock (_stateLock)
+        {
+            Items.Clear();
+            RebuildIndex();
+            NotifyChanged();
+        }
     }
 
     public bool CanAddItem(Item item)
     {
-        return item.Type == ItemType.Pet ||
-               item.Type == ItemType.Currency ||
-               !IsFull;
+        lock (_stateLock)
+        {
+            // A full inventory can still accept another copy of an existing
+            // stack. This keeps capacity checks consistent with AddItem.
+            return item.Type == ItemType.Pet ||
+                   item.Type == ItemType.Currency ||
+                   FindStack(item) != null ||
+                   _usedSlots < SlotCapacity;
+        }
     }
 
     /// <summary>
@@ -371,8 +417,9 @@ public class Inventory
     /// </summary>
     public bool CanReplaceItem(Item itemToRemove, Item itemToAdd)
     {
-        InventoryItem? source = Items.FirstOrDefault(entry =>
-            AreSameStack(itemToRemove, entry.Item));
+        lock (_stateLock)
+        {
+            InventoryItem? source = FindStack(itemToRemove);
 
         if (source == null)
             return false;
@@ -393,7 +440,24 @@ public class Inventory
         int usedSlotsAfterRemoval = UsedSlots -
             (source.Quantity == 1 && source.Item.Type != ItemType.Pet ? 1 : 0);
 
-        return usedSlotsAfterRemoval < SlotCapacity;
+            return usedSlotsAfterRemoval < SlotCapacity;
+        }
+    }
+
+    /// <summary>
+    /// Returns a stable copy for background save and equipment scans. The
+    /// live list remains available for existing UI code, but callers that
+    /// cross threads should use this snapshot instead of enumerating Items.
+    /// </summary>
+    internal List<InventoryItem> CreateSnapshot()
+    {
+        lock (_stateLock)
+        {
+            return Items
+                .Where(entry => entry.Quantity > 0)
+                .Select(entry => new InventoryItem(entry.Item, entry.Quantity))
+                .ToList();
+        }
     }
 
     /// <summary>
@@ -433,13 +497,9 @@ public class Inventory
 
     private InventoryItem? FindStack(Item item)
     {
-        foreach (InventoryItem inventoryItem in Items)
-        {
-            if (AreSameStack(item, inventoryItem.Item))
-                return inventoryItem;
-        }
-
-        return null;
+        return _stackIndex.TryGetValue(GetStackKey(item), out InventoryItem? stack)
+            ? stack
+            : null;
     }
 
     private sealed class NotificationDeferral : IDisposable
@@ -526,23 +586,53 @@ public class Inventory
             else
                 existing.Quantity += resultStack.Quantity;
         }
+
+        RebuildIndex();
     }
+
+    private void RebuildIndex()
+    {
+        _stackIndex.Clear();
+        _usedSlots = 0;
+
+        foreach (InventoryItem entry in Items)
+        {
+            if (entry.Quantity <= 0)
+                continue;
+
+            _stackIndex[GetStackKey(entry.Item)] = entry;
+            if (entry.Item.Type is not (ItemType.Pet or ItemType.Currency))
+                _usedSlots++;
+        }
+    }
+
+    private static StackKey GetStackKey(Item item) =>
+        new(item.Type, item.UpgradeLevel, item.Name);
+
+    private readonly record struct StackKey(
+        ItemType Type,
+        int UpgradeLevel,
+        string Name);
 
     public bool TryPurchaseNextSlot()
     {
-        int cost = NextSlotCost;
+        lock (_stateLock)
+        {
+            int cost = NextSlotCost;
 
-        if (!RemoveItem(ItemData.Coins, cost))
-            return false;
+            if (!RemoveItem(ItemData.Coins, cost))
+                return false;
 
-        SlotCapacity++;
-        NotifyChanged();
-        return true;
+            SlotCapacity++;
+            NotifyChanged();
+            return true;
+        }
     }
 
     public void RestoreSlotCapacity(int slotCapacity)
     {
-        SlotCapacity = Math.Max(StartingSlotCapacity, slotCapacity);
+        lock (_stateLock)
+            SlotCapacity = Math.Max(StartingSlotCapacity, slotCapacity);
     }
 }
 

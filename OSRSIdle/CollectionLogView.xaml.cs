@@ -10,6 +10,8 @@ public partial class CollectionLogView : ContentView
     private bool _hideCompleted;
     private bool _isActive;
     private int _activationGeneration;
+    private int _visibleEnemyCount = 40;
+    private readonly UiUpdateCoalescer _uiUpdates;
 
     private readonly Dictionary<Enemy, EnemyCardState> _enemyCards = new();
 
@@ -29,6 +31,7 @@ public partial class CollectionLogView : ContentView
             collectionLog;
         _fightNowRequested =
             fightNowRequested;
+        _uiUpdates = new UiUpdateCoalescer(RefreshDisplay);
 
         TapGestureRecognizer detailTapGesture =
             new TapGestureRecognizer();
@@ -74,6 +77,7 @@ public partial class CollectionLogView : ContentView
 
     public void Dispose()
     {
+        _uiUpdates.Dispose();
         SetActive(false);
     }
 
@@ -82,13 +86,7 @@ public partial class CollectionLogView : ContentView
         if (!_isActive)
             return;
 
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (!_isActive)
-                return;
-
-            UpdateEnemyCard(enemy);
-        });
+        _uiUpdates.Request();
     }
 
     private void OnDropDiscovered(Item item)
@@ -96,32 +94,7 @@ public partial class CollectionLogView : ContentView
         if (!_isActive)
             return;
 
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (!_isActive)
-                return;
-
-            if (_hideCompleted)
-            {
-                if (_selectedEnemy != null &&
-                    _collectionLog.IsComplete(_selectedEnemy))
-                {
-                    HideEnemyDetails();
-                }
-            }
-
-            foreach (Enemy enemy in StartupDataCache.GetEnemiesDropping(item))
-                UpdateEnemyCard(enemy);
-
-            VisualEffects.PlayParticles(
-                CollectionEffectLayer,
-                VisualEffectKind.Burst,
-                durationMilliseconds: 850,
-                particleCount: 16);
-
-            if (_selectedEnemy?.DropTable.Drops.Any(drop => drop.Item == item) == true)
-                ShowEnemyDetails(_selectedEnemy);
-        });
+        _uiUpdates.Request();
     }
 
     private void OnSkillingPetDiscovered(Item item)
@@ -130,11 +103,7 @@ public partial class CollectionLogView : ContentView
             return;
 
         _ = item;
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_isActive)
-                BuildSkillingPetList();
-        });
+        _uiUpdates.Request();
     }
 
     private void OnHideCompletedToggled(
@@ -150,6 +119,14 @@ public partial class CollectionLogView : ContentView
             HideEnemyDetails();
         }
 
+        BuildEnemyList();
+    }
+
+    private void OnLoadMoreEnemiesClicked(
+        object? sender,
+        EventArgs e)
+    {
+        _visibleEnemyCount += 40;
         BuildEnemyList();
     }
 
@@ -223,15 +200,23 @@ public partial class CollectionLogView : ContentView
 
     private void BuildEnemyList()
     {
-        if (_enemyCards.Count > 0)
-        {
-            foreach (Enemy enemy in _enemyCards.Keys)
-                UpdateEnemyCard(enemy);
-            return;
-        }
+        IReadOnlyList<Enemy> candidates = StartupDataCache.OrderedEnemies
+            .Where(enemy => !_hideCompleted || !_collectionLog.IsComplete(enemy))
+            .ToArray();
 
-        foreach (Enemy enemy in StartupDataCache.OrderedEnemies)
+        // Remove only the visual attachments. Keep realized cards in the
+        // cache so filtering and paging do not recreate native handlers.
+        EnemyList.Children.Clear();
+
+        foreach (Enemy enemy in candidates.Take(_visibleEnemyCount))
         {
+            if (_enemyCards.TryGetValue(enemy, out EnemyCardState? existing))
+            {
+                UpdateEnemyCard(enemy);
+                EnemyList.Children.Add(existing.Card);
+                continue;
+            }
+
             bool complete =
                 _collectionLog.IsComplete(enemy);
 
@@ -322,6 +307,11 @@ public partial class CollectionLogView : ContentView
 
             EnemyList.Children.Add(enemyCard);
         }
+
+        LoadMoreEnemiesButton.IsVisible =
+            candidates.Count > _visibleEnemyCount;
+        LoadMoreEnemiesButton.Text =
+            $"Load more ({Math.Min(_visibleEnemyCount, candidates.Count)}/{candidates.Count})";
     }
 
     public async Task<bool> OpenEnemyAsync(
@@ -408,6 +398,7 @@ public partial class CollectionLogView : ContentView
                 $"HP: {enemy.HP}   Attack: {enemy.Attack}\n" +
                 $"Strength: {enemy.Strength}   Defense: {enemy.Defense}\n" +
                 $"Attack speed: {enemy.AttackSpeedTicks} ticks\n" +
+                $"Weakness: {enemy.Weakness.DisplayName()}\n" +
                 $"Total kills: {killCount:N0}";
         }
     }

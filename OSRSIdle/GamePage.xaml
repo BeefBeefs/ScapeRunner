@@ -516,6 +516,7 @@
 
         <Border
             x:Name="FpsDebugOverlay"
+            IsVisible="False"
             Grid.Row="0"
             Grid.RowSpan="3"
             Margin="0,8,8,0"

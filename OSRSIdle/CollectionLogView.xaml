@@ -213,13 +213,20 @@
                 x:Name="EnemyList"
                 Spacing="5" />
 
+            <local:GoldSliceButton
+                x:Name="LoadMoreEnemiesButton"
+                Text="Load more enemies"
+                Variant="Neutral"
+                TextColor="White"
+                WidthRequest="220"
+                HorizontalOptions="Center"
+                CenterText="True"
+                IsVisible="False"
+                Clicked="OnLoadMoreEnemiesClicked" />
+
         </VerticalStackLayout>
 
     </ScrollView>
-
-    <Grid
-        x:Name="CollectionEffectLayer"
-        InputTransparent="True" />
 
     </Grid>
 

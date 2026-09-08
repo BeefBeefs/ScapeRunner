@@ -22,6 +22,7 @@ public partial class ActivityBar : ContentView, IDisposable
     private double _combatXPProgress;
 
     private readonly EventHandler _progressTimerTick;
+    private readonly UiUpdateCoalescer _displayUpdates;
     private int _combatUpdatePending;
     private bool _disposed;
 
@@ -43,6 +44,8 @@ public partial class ActivityBar : ContentView, IDisposable
 
         _combatManager =
             combatManager;
+
+        _displayUpdates = new UiUpdateCoalescer(UpdateDisplay);
 
 
         _activityManager.ActivityStateChanged +=
@@ -77,10 +80,7 @@ public partial class ActivityBar : ContentView, IDisposable
         object? sender,
         EventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            UpdateDisplay();
-        });
+        _displayUpdates.Request();
     }
 
 
@@ -90,13 +90,8 @@ public partial class ActivityBar : ContentView, IDisposable
 
     private void OnCombatChanged()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (_disposed)
-                return;
-
-            UpdateDisplay();
-        });
+        if (!_disposed)
+            _displayUpdates.Request();
     }
 
     private void OnCombatUpdated()
@@ -120,6 +115,7 @@ public partial class ActivityBar : ContentView, IDisposable
             {
                 UpdateCombatMiniHPBars();
                 UpdateCombatXP();
+                UpdateCombatStyleButtons();
             }
         });
     }
@@ -168,6 +164,7 @@ public partial class ActivityBar : ContentView, IDisposable
             return;
 
         _disposed = true;
+        _displayUpdates.Dispose();
 
         _progressTimer?.Stop();
         if (_progressTimer != null)
@@ -435,6 +432,58 @@ public partial class ActivityBar : ContentView, IDisposable
         SetCombatStyleButtonAppearance(
             DefenseStyleButton,
             _combatManager.CurrentCombatStyle == CombatStyle.Defense);
+
+        CombatStyleDescriptionLabel.Text =
+            _combatManager.CurrentCombatStyle.Description();
+
+        UpdateCombatAbilityButtons();
+    }
+
+    private void UpdateCombatAbilityButtons()
+    {
+        int cooldown = _combatManager.AbilityCooldownTicks;
+        CombatAbility? primed = _combatManager.PrimedAbility;
+
+        UpdateCombatAbilityButton(
+            PreciseAbilityButton,
+            CombatAbility.PreciseStrike,
+            cooldown,
+            primed);
+        UpdateCombatAbilityButton(
+            PowerAbilityButton,
+            CombatAbility.PowerStrike,
+            cooldown,
+            primed);
+        UpdateCombatAbilityButton(
+            GuardAbilityButton,
+            CombatAbility.Guard,
+            cooldown,
+            primed);
+    }
+
+    private void UpdateCombatAbilityButton(
+        GoldSliceButton button,
+        CombatAbility ability,
+        int cooldown,
+        CombatAbility? primed)
+    {
+        bool correctStyle = ability.RequiredStyle() ==
+            _combatManager.CurrentCombatStyle;
+        bool isPrimed = primed == ability;
+        bool ready = correctStyle && (isPrimed || cooldown == 0);
+
+        button.Text = isPrimed
+            ? $"{ability.DisplayName()} ✓"
+            : cooldown > 0
+                ? $"{ability.DisplayName()} ({cooldown})"
+                : ability.DisplayName();
+        button.IsEnabled = ready && !isPrimed;
+        button.Variant = isPrimed
+            ? GoldSliceButtonVariant.Green
+            : ready
+                ? GoldSliceButtonVariant.Neutral
+                : GoldSliceButtonVariant.Red;
+        button.TextColor = Colors.White;
     }
 
 
@@ -683,6 +732,21 @@ public partial class ActivityBar : ContentView, IDisposable
         UpdateCombatStyleButtons();
 
         UpdateCombatXP();
+    }
+
+    private void OnPreciseAbilityClicked(object? sender, EventArgs e) =>
+        ActivateAbility(CombatAbility.PreciseStrike);
+
+    private void OnPowerAbilityClicked(object? sender, EventArgs e) =>
+        ActivateAbility(CombatAbility.PowerStrike);
+
+    private void OnGuardAbilityClicked(object? sender, EventArgs e) =>
+        ActivateAbility(CombatAbility.Guard);
+
+    private void ActivateAbility(CombatAbility ability)
+    {
+        if (_combatManager.ActivateAbility(ability))
+            UpdateCombatAbilityButtons();
     }
 
 

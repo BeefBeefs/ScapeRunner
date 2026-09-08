@@ -289,6 +289,27 @@
 
             </Grid>
 
+            <Border
+                Stroke="#D99032"
+                StrokeThickness="2"
+                Padding="10,7"
+                BackgroundColor="#E64A4A4A">
+
+                <VerticalStackLayout Spacing="3">
+                    <Label
+                        Text="PROGRESSION GOALS"
+                        FontSize="16"
+                        FontAttributes="Bold"
+                        TextColor="#FFE26A"
+                        HorizontalOptions="Center" />
+                    <Label
+                        x:Name="ProgressionGoalsLabel"
+                        FontSize="12"
+                        HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+
+            </Border>
+
 
             <!-- =================================================
                  EQUIPMENT

@@ -263,6 +263,26 @@ public class Game
         if (completedActions <= 0)
             return;
 
+        if (activity.ItemReward != null &&
+            !Player.Inventory.CanAddItem(activity.ItemReward))
+        {
+            // Treat a full rewarded activity as paused rather than silently
+            // granting XP while discarding every produced item.
+            OfflineActivity = null;
+            OfflineSkillingSummary = new OfflineSkillingSummary(
+                skill.Name,
+                activity.Name,
+                0,
+                0,
+                activity.ItemReward.Name,
+                0,
+                null,
+                skill.Level,
+                skill.Level,
+                true);
+            return;
+        }
+
         int startingLevel = skill.Level;
         double totalXP = CalculateOfflineSkillXP(
             skill,
@@ -301,7 +321,8 @@ public class Game
             rewardQuantity,
             pet?.Name,
             startingLevel,
-            skill.Level);
+            skill.Level,
+            false);
     }
 
     private static double CalculateOfflineSkillXP(
@@ -447,7 +468,8 @@ public readonly record struct OfflineSkillingSummary(
     int ItemQuantity,
     string? PetName,
     int StartingLevel,
-    int EndingLevel);
+    int EndingLevel,
+    bool InventoryFull);
 
 public readonly record struct OfflineLevelUp(
     string SkillName,
