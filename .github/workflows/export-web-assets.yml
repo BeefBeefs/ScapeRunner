@@ -1,0 +1,35 @@
+name: Export web assets
+
+on:
+  push:
+    branches: [web-asset-export]
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: web-asset-export
+      - name: Build text-safe sprite archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f web-export/manifest.txt ]; then
+            echo "Export already exists; nothing to do."
+            exit 0
+          fi
+          rm -rf web-export
+          mkdir -p web-export
+          tar -czf /tmp/web-sprites.tar.gz -C OSRSIdle/Resources/Images Enemies Items
+          base64 -w0 /tmp/web-sprites.tar.gz > /tmp/web-sprites.tar.gz.b64
+          split -b 350000 -d -a 3 /tmp/web-sprites.tar.gz.b64 web-export/chunk_
+          printf 'archive=web-sprites.tar.gz\nchunks=%s\nbytes=%s\n' "$(find web-export -name 'chunk_*' | wc -l)" "$(wc -c < /tmp/web-sprites.tar.gz.b64)" > web-export/manifest.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web-export
+          git commit -m "Export web sprite archive"
+          git push origin HEAD:web-asset-export
