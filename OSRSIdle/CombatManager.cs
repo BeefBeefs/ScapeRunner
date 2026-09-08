@@ -104,6 +104,8 @@ public class CombatManager : IDisposable
     // ============================================================
 
     private CancellationTokenSource? _combatCancellation;
+    private CancellationTokenSource? _autoFightCancellation;
+    private const int AutoFightDelayTicks = 12;
 
     private double _autoEatElapsedMilliseconds;
 
@@ -152,6 +154,12 @@ public class CombatManager : IDisposable
         Enemy enemy,
         int ticksRemaining)
     {
+        ClearAutoFightRespawn();
+        if (!IsAutoFightEnabled || Player.CurrentHP <= 0 || IsInCombat)
+            return;
+
+        _autoFightCancellation = new CancellationTokenSource();
+        CancellationToken token = _autoFightCancellation.Token;
         IsAutoFightRespawning =
             true;
 
@@ -164,12 +172,51 @@ public class CombatManager : IDisposable
                 ticksRemaining);
 
         CombatUpdated?.Invoke();
+        _ = AutoFightRespawnAsync(enemy, token);
     }
 
     public void SetAutoFightEnabled(bool enabled)
     {
         IsAutoFightEnabled = enabled;
+        if (!enabled)
+            ClearAutoFightRespawn();
         CombatUpdated?.Invoke();
+    }
+
+    private async Task AutoFightRespawnAsync(Enemy enemy, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested && AutoFightTicksRemaining > 0)
+            {
+                await Task.Delay(GameClock.TickInterval, token).ConfigureAwait(false);
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (!token.IsCancellationRequested)
+                        UpdateAutoFightRespawn(AutoFightTicksRemaining - 1);
+                });
+            }
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Run and activity changes can cancel a queued restart.
+                if (token.IsCancellationRequested || !IsAutoFightEnabled ||
+                    !ReferenceEquals(AutoFightEnemy, enemy) || IsInCombat)
+                    return;
+
+                if (Player.CurrentHP <= 0)
+                {
+                    SetAutoFightEnabled(false);
+                    return;
+                }
+
+                StartCombat(enemy, restorePlayerHealth: false);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Auto was disabled, the encounter ended, or another fight began.
+        }
     }
 
     public void UpdateAutoFightRespawn(
@@ -188,6 +235,10 @@ public class CombatManager : IDisposable
 
     public void ClearAutoFightRespawn()
     {
+        _autoFightCancellation?.Cancel();
+        _autoFightCancellation?.Dispose();
+        _autoFightCancellation = null;
+
         if (!IsAutoFightRespawning &&
             AutoFightEnemy == null &&
             AutoFightTicksRemaining == 0)
@@ -221,9 +272,6 @@ public class CombatManager : IDisposable
         // --------------------------------------------------------
 
         StopCombat();
-
-        ClearAutoFightRespawn();
-
 
         // --------------------------------------------------------
         // Clear previous loot.
@@ -298,6 +346,7 @@ public class CombatManager : IDisposable
 
     public void StopCombat()
     {
+        ClearAutoFightRespawn();
         // --------------------------------------------------------
         // Cancel the combat loop.
         // --------------------------------------------------------
@@ -995,6 +1044,10 @@ public class CombatManager : IDisposable
         // Tell UI.
         // --------------------------------------------------------
 
+        if (IsAutoFightEnabled)
+            BeginAutoFightRespawn(enemy,
+                DebugSettings.GetAutoFightRespawnTicks(AutoFightDelayTicks));
+
         EnemyDefeated?.Invoke(
             enemy);
     }
@@ -1011,6 +1064,7 @@ public class CombatManager : IDisposable
         // --------------------------------------------------------
 
         Player.CurrentHP = 0;
+        SetAutoFightEnabled(false);
 
 
         // --------------------------------------------------------

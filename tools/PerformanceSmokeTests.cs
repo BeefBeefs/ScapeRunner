@@ -164,6 +164,8 @@ internal static class PerformanceSmokeTests
         using CombatManager combat = new(player);
         using ActivityBar bar = new(activity, combat);
         await CheckLiveCombatDefeatAsync(combat);
+        await CheckCombatStyleLayoutAsync(host, bar, combat);
+        await CheckAutoFightNavigationAsync(host);
         GameClock.SetSpeedUpEnabled(true);
         Check(
             GameClock.SpeedMultiplier == GameClock.SpeedUpMultiplier &&
@@ -396,6 +398,114 @@ internal static class PerformanceSmokeTests
         {
             combat.EnemyDefeated -= OnEnemyDefeated;
             combat.AbortCombatEncounter();
+            DebugSettings.SetInstakillEnabled(false);
+            GameClock.SetSpeedUpEnabled(false);
+        }
+    }
+
+    private static async Task CheckCombatStyleLayoutAsync(
+        ContentPage host, ActivityBar bar, CombatManager combat)
+    {
+        host.Content = bar;
+        Enemy enemy = StartupDataCache.Enemies[0];
+        combat.StartCombat(enemy);
+        for (int iteration = 0; iteration < 18; iteration++)
+        {
+            bar.WidthRequest = iteration % 2 == 0 ? 360 : 600;
+            CombatStyle style = (CombatStyle)(iteration % 3);
+            combat.SetCombatStyle(style);
+            Call(bar, "UpdateDisplay");
+            if (iteration % 3 == 0)
+            {
+                bar.IsVisible = false;
+                await Task.Delay(20);
+                bar.IsVisible = true;
+            }
+            await Task.Delay(40);
+            foreach (string name in new[] { "AttackStyleButton", "StrengthStyleButton", "DefenseStyleButton" })
+            {
+                GoldSliceButton button = bar.FindByName<GoldSliceButton>(name);
+                Label label = (Label)typeof(GoldSliceButton).GetField("_label", Private)!.GetValue(button)!;
+                Grid content = (Grid)typeof(GoldSliceButton).GetField("_contentLayout", Private)!.GetValue(button)!;
+                if (content.Width <= 0 || Math.Abs(content.Width - button.Width) > 1 ||
+                    Math.Abs(content.Height - button.Height) > 1 ||
+                    label.Width <= 0 || label.Height < button.Height - 1 ||
+                    label.HorizontalTextAlignment != TextAlignment.Center ||
+                    label.VerticalTextAlignment != TextAlignment.Center)
+                    throw new InvalidOperationException($"{name} lost centered layout on iteration {iteration}: button {button.Bounds}, content {content.Bounds}, label {label.Bounds}");
+            }
+        }
+        Check(true, "Combat style text stays centered through style, size and visibility changes");
+        combat.AbortCombatEncounter();
+        bar.WidthRequest = -1;
+    }
+
+    private static async Task CheckAutoFightNavigationAsync(ContentPage host)
+    {
+        Player player = new();
+        using CombatManager combat = new(player);
+        CombatView view = new(player, combat);
+        Enemy enemy = StartupDataCache.Enemies[0];
+        int kills = 0;
+        combat.EnemyDefeated += _ => Interlocked.Increment(ref kills);
+        DebugSettings.SetInstakillEnabled(true);
+        GameClock.SetSpeedUpEnabled(true);
+        try
+        {
+            host.Content = view;
+            view.SetActive(true);
+            view.StartCombatNow(enemy);
+            Call(view, "OnAutoFightClicked", null, EventArgs.Empty);
+            view.SetActive(false);
+            host.Content = new Label { Text = "Away from combat" };
+            await UntilAsync(() => Volatile.Read(ref kills) >= 3);
+            Check(kills >= 3 && combat.IsAutoFightEnabled,
+                "Auto-fight repeats multiple kills away from combat page");
+
+            await UntilAsync(() => combat.IsAutoFightRespawning);
+            // Hold the countdown long enough to inspect the restored page.
+            combat.UpdateAutoFightRespawn(100);
+            host.Content = view;
+            view.SetActive(true);
+            view.RefreshCombatDisplay();
+            Check(view.FindByName<GoldSliceButton>("AutoFightButton").Variant == GoldSliceButtonVariant.Green &&
+                view.FindByName<Label>("AutoFightStatusLabel").Text.StartsWith("Next enemy in") &&
+                view.FindByName<GoldSliceButton>("StopCombatButton").IsVisible,
+                "Returning during respawn restores Auto, countdown and Run controls");
+
+            Call(view, "OnStopCombatClicked", null, EventArgs.Empty);
+            int stoppedKills = Volatile.Read(ref kills);
+            await Task.Delay(250);
+            Check(!combat.IsInCombat && !combat.IsAutoFightRespawning &&
+                !combat.IsAutoFightEnabled && kills == stoppedKills,
+                "Run cancels the pending auto-fight restart");
+            view.RefreshCombatDisplay();
+            Check(view.FindByName<ScrollView>("EnemySelectionView").IsVisible,
+                "Returning after Run keeps enemy selection open");
+
+            combat.SetAutoFightEnabled(true);
+            combat.BeginAutoFightRespawn(enemy, 1);
+            combat.AbortCombatEncounter();
+            await Task.Delay(150);
+            Check(!combat.IsInCombat && !combat.IsAutoFightEnabled,
+                "Starting another activity cancels auto-fight respawn");
+
+            player.CurrentHP = player.GetMaxHP() - 1;
+            int remainingHP = player.CurrentHP;
+            combat.SetAutoFightEnabled(true);
+            combat.BeginAutoFightRespawn(enemy, 1);
+            await UntilAsync(() => combat.IsInCombat);
+            Check(player.CurrentHP == remainingHP, "Auto-fight preserves HP between encounters");
+            view.SetActive(false);
+            Call(combat, "HandlePlayerDefeated");
+            await Task.Delay(150);
+            Check(!combat.IsAutoFightEnabled && !combat.IsAutoFightRespawning && !combat.IsInCombat,
+                "Death disables auto-fight while the combat page is hidden");
+        }
+        finally
+        {
+            combat.AbortCombatEncounter();
+            view.Dispose();
             DebugSettings.SetInstakillEnabled(false);
             GameClock.SetSpeedUpEnabled(false);
         }

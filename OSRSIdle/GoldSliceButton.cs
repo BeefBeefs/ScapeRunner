@@ -222,6 +222,8 @@ public sealed class GoldSliceButton : ContentView
         _layout.Children.Add(_middleSlice);
         _layout.Children.Add(_rightSlice);
         _layout.Children.Add(_contentLayout);
+        AbsoluteLayout.SetLayoutFlags(_contentLayout, Microsoft.Maui.Layouts.AbsoluteLayoutFlags.All);
+        AbsoluteLayout.SetLayoutBounds(_contentLayout, new Rect(0, 0, 1, 1));
 
         Content = _layout;
 
@@ -253,6 +255,11 @@ public sealed class GoldSliceButton : ContentView
 
         if (_icon.IsVisible)
             width += _icon.WidthRequest + _contentLayout.ColumnSpacing;
+
+        // Measuring the label alone leaves the content grid (and its shadow
+        // wrapper) with stale layout state after text/font or visibility
+        // changes. Always measure the full tree before it is arranged.
+        base.MeasureOverride(widthConstraint, heightConstraint);
 
         return new Size(
             Math.Max(MinimumWidthRequest, width),
@@ -290,9 +297,8 @@ public sealed class GoldSliceButton : ContentView
                 $"{assetPrefix}_right.png");
         }
 
-        // Reapply the bounds even when the artwork itself is cached. Dynamic
-        // text updates can trigger a measure/arrange pass without a size
-        // change, and the content layer must still fill the current button.
+        // Artwork uses fixed end caps; the content fills the button through
+        // proportional bounds on every layout pass.
         AbsoluteLayout.SetLayoutBounds(
             _leftSlice,
             new Rect(0, 0, SliceWidth, height));
@@ -306,10 +312,6 @@ public sealed class GoldSliceButton : ContentView
         AbsoluteLayout.SetLayoutBounds(
             _rightSlice,
             new Rect(width - SliceWidth, 0, SliceWidth, height));
-
-        AbsoluteLayout.SetLayoutBounds(
-            _contentLayout,
-            new Rect(0, 0, width, height));
     }
 
     private void UpdateContentLayout()
@@ -317,11 +319,16 @@ public sealed class GoldSliceButton : ContentView
         bool hasIcon = IconSource != null;
 
         _icon.IsVisible = hasIcon;
-        _contentLayout.ColumnDefinitions.Clear();
+        int columns = hasIcon && !CenterText ? 2 : 1;
+        if (_contentLayout.ColumnDefinitions.Count != columns)
+        {
+            _contentLayout.ColumnDefinitions.Clear();
+            for (int column = 0; column < columns; column++)
+                _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        }
 
         if (hasIcon && CenterText)
         {
-            _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 0);
             _icon.HorizontalOptions = LayoutOptions.Start;
@@ -330,8 +337,6 @@ public sealed class GoldSliceButton : ContentView
         }
         else if (hasIcon)
         {
-            _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-            _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 1);
             _icon.HorizontalOptions = LayoutOptions.End;
@@ -340,7 +345,6 @@ public sealed class GoldSliceButton : ContentView
         }
         else
         {
-            _contentLayout.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Grid.SetColumn(_icon, 0);
             Grid.SetColumn(_label, 0);
             _label.HorizontalOptions = LayoutOptions.Fill;
@@ -354,9 +358,7 @@ public sealed class GoldSliceButton : ContentView
 
     private void RefreshContentLayout()
     {
-        UpdateContentLayout();
         InvalidateMeasure();
-        BuildSlices();
     }
 
     private static Image CreateSlice()

@@ -18,9 +18,6 @@ public partial class CombatView : ContentView
     private double _playerAttackProgress;
     private double _enemyAttackProgress;
 
-    private bool _autoFightEnabled;
-    private CancellationTokenSource? _autoFightCancellation;
-    private int _autoFightGeneration;
     private int _combatUiUpdatePending;
     private bool _disposed;
     private bool _isActive;
@@ -31,7 +28,6 @@ public partial class CombatView : ContentView
     private readonly GraphicsView _playerHitSplat;
     private readonly GraphicsView _enemyHitSplat;
 
-    private const int AutoFightDelayTicks = 12;
     private sealed class EnemyCardState
     {
         public required Label NameLabel { get; init; }
@@ -104,6 +100,22 @@ public partial class CombatView : ContentView
             : Color.FromArgb("#404040");
     }
 
+    private void UpdateAutoFightDisplay()
+    {
+        bool enabled = _combatManager.IsAutoFightEnabled;
+        AutoFightButton.Variant = enabled
+            ? GoldSliceButtonVariant.Green
+            : GoldSliceButtonVariant.Neutral;
+        UpdateAutoFightIndicator(enabled);
+        int ticks = _combatManager.AutoFightTicksRemaining;
+        AutoFightStatusLabel.Text = !enabled ? string.Empty
+            : _combatManager.IsAutoFightRespawning
+                ? $"Next enemy in {ticks} tick{(ticks == 1 ? "" : "s")}..."
+                : "Fighting...";
+        UpdateEnemyNameAppearance();
+        UpdateEnemyPortraitAppearance();
+    }
+
     // ============================================================
     // PLAYER DEFEATED
     // ============================================================
@@ -118,11 +130,7 @@ public partial class CombatView : ContentView
             if (_disposed || !_isActive)
                 return;
 
-            // Completely disable auto fight.
-            DisableAutoFight();
-
-            // Stop any remaining combat.
-            _combatManager.StopCombat();
+            UpdateAutoFightDisplay();
 
             // Reset combat UI.
             ResetDamageBars();
@@ -164,9 +172,6 @@ public partial class CombatView : ContentView
         _playerHitSplat.AbortAnimation("hitSplatFade");
         _enemyHitSplat.AbortAnimation("hitSplatMove");
         _enemyHitSplat.AbortAnimation("hitSplatFade");
-
-        _autoFightCancellation?.Cancel();
-        _autoFightCancellation?.Dispose();
     }
 
     public void SetActive(bool active)
@@ -611,6 +616,45 @@ public partial class CombatView : ContentView
     /// </summary>
     public void RefreshCombatDisplay()
     {
+        // Events are intentionally skipped while hidden. Reconstruct the
+        // current encounter when returning, including defeats and respawns.
+        Enemy? enemy = _combatManager.CurrentEnemy ??
+            _combatManager.AutoFightEnemy ??
+            (CombatViewLayout.IsVisible && _player.CurrentHP > 0
+                ? _combatManager.LastDefeatedEnemy : null);
+        if (enemy != null)
+        {
+            _lastEnemy = enemy;
+            EnemySelectionView.IsVisible = false;
+            CombatViewLayout.IsVisible = true;
+            EnemyNameLabel.Text = FormatEnemyName(enemy);
+            EnemyTraitsLabel.FormattedText = BuildEnemyTraitsText(enemy);
+            EnemyDescriptionLabel.Text = enemy.Description;
+            EnemyIcon.Source = enemy.LargeIconImage;
+            UpdateEnemyCombatStats(enemy);
+            UpdateEnemyKillCount(enemy);
+            ActiveEnemyDropsHost.IsVisible = true;
+            bool fighting = _combatManager.IsInCombat;
+            bool respawning = _combatManager.IsAutoFightRespawning;
+            StopCombatButton.IsVisible = fighting || respawning;
+            StopCombatButton.IsEnabled = true;
+            FightAgainButton.IsVisible = EnemySelectButton.IsVisible = !fighting && !respawning;
+            FightAgainButton.IsEnabled = EnemySelectButton.IsEnabled = !respawning;
+            LootResults.IsVisible = !fighting;
+            if (!fighting)
+                BuildLootResults(enemy);
+            CombatStatusLabel.Text = fighting
+                ? $"Fighting {enemy.Name}"
+                : $"{enemy.Name} defeated!";
+        }
+        else
+        {
+            _lastEnemy = null;
+            CombatViewLayout.IsVisible = false;
+            EnemySelectionView.IsVisible = true;
+        }
+        UpdateAutoFightDisplay();
+
         PlayerDamageFill.AbortAnimation("damageTrail");
         EnemyDamageFill.AbortAnimation("damageTrail");
 
@@ -1279,6 +1323,7 @@ public partial class CombatView : ContentView
 
             ResetDamageBars();
 
+            UpdateAutoFightDisplay();
             UpdateHPBars();
             UpdateAttackBars();
         });
@@ -1300,6 +1345,7 @@ public partial class CombatView : ContentView
             if (_disposed || !_isActive)
                 return;
 
+            UpdateAutoFightDisplay();
             UpdateHPBars();
             UpdateAttackBars();
         });
@@ -1794,7 +1840,7 @@ public partial class CombatView : ContentView
 
             UpdateEnemyKillCount(enemy);
 
-            Task defeatAnimation = PlayEnemyDefeatAnimation();
+            _ = PlayEnemyDefeatAnimation();
 
             SetAttackProgress(0, 0);
 
@@ -1805,7 +1851,7 @@ public partial class CombatView : ContentView
             BuildLootResults(enemy, loot);
             UpdateHPBars();
 
-            if (_autoFightEnabled)
+            if (_combatManager.IsAutoFightEnabled)
             {
                 // Keep Run available while Auto Fight is waiting to respawn.
                 // Pressing it cancels both the pending respawn and combat mode.
@@ -1816,9 +1862,7 @@ public partial class CombatView : ContentView
                 FightAgainButton.IsEnabled = false;
                 EnemySelectButton.IsEnabled = false;
 
-                _ = BeginAutoFightRespawnAfterDefeatAsync(
-                    enemy,
-                    defeatAnimation);
+                UpdateAutoFightDisplay();
                 return;
             }
 
@@ -1930,27 +1974,6 @@ public partial class CombatView : ContentView
         }
     }
 
-
-    private async Task BeginAutoFightRespawnAfterDefeatAsync(
-        Enemy enemy,
-        Task defeatAnimation)
-    {
-        await defeatAnimation;
-
-        if (!_autoFightEnabled)
-            return;
-
-        _combatManager.BeginAutoFightRespawn(
-            enemy,
-            DebugSettings.GetAutoFightRespawnTicks(
-                AutoFightDelayTicks));
-
-        UpdateEnemyPortraitAppearance();
-
-        UpdateEnemyNameAppearance();
-
-        await StartAutoFightNextEnemy(enemy);
-    }
 
     private async Task PlayEnemyDefeatAnimation()
     {
@@ -2089,15 +2112,7 @@ public partial class CombatView : ContentView
 
     private void DisableAutoFight()
     {
-        _autoFightEnabled = false;
         _combatManager.SetAutoFightEnabled(false);
-        _autoFightGeneration++;
-
-        _combatManager.ClearAutoFightRespawn();
-
-        _autoFightCancellation?.Cancel();
-        _autoFightCancellation?.Dispose();
-        _autoFightCancellation = null;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -2184,7 +2199,6 @@ public partial class CombatView : ContentView
 
             if (!_combatManager.IsAutoFightEnabled)
             {
-                _autoFightEnabled = false;
                 AutoFightButton.Text = "Auto";
                 AutoFightButton.Variant = GoldSliceButtonVariant.Neutral;
                 AutoFightButton.TextColor = Colors.White;
@@ -2198,13 +2212,12 @@ public partial class CombatView : ContentView
     object? sender,
     EventArgs e)
     {
-        if (_autoFightEnabled)
+        if (_combatManager.IsAutoFightEnabled)
         {
             DisableAutoFight();
             return;
         }
 
-        _autoFightEnabled = true;
         _combatManager.SetAutoFightEnabled(true);
 
         AutoFightButton.Text =
@@ -2245,7 +2258,6 @@ public partial class CombatView : ContentView
             return;
 
         _lastEnemy = enemy;
-        _autoFightEnabled = true;
         _combatManager.SetAutoFightEnabled(true);
 
         EnemySelectionView.IsVisible = false;
@@ -2264,107 +2276,6 @@ public partial class CombatView : ContentView
 
         ResetDamageBars();
         _combatManager.StartCombat(enemy, restorePlayerHealth: false);
-    }
-
-    private async Task StartAutoFightNextEnemy(
-    Enemy enemy)
-    {
-        if (!_autoFightEnabled)
-            return;
-
-        int generation =
-            _autoFightGeneration;
-
-        _autoFightCancellation?.Cancel();
-        _autoFightCancellation?.Dispose();
-
-        _autoFightCancellation =
-            new CancellationTokenSource();
-
-        CancellationToken token =
-            _autoFightCancellation.Token;
-
-        try
-        {
-            // Count down one tick at a time.
-            int respawnTicks =
-                DebugSettings.GetAutoFightRespawnTicks(
-                    AutoFightDelayTicks);
-
-            for (int ticksLeft = respawnTicks;
-                 ticksLeft > 0;
-                 ticksLeft--)
-            {
-                if (!_autoFightEnabled ||
-                    token.IsCancellationRequested ||
-                    generation != _autoFightGeneration)
-                {
-                    return;
-                }
-
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    _combatManager.UpdateAutoFightRespawn(
-                        ticksLeft);
-
-                    AutoFightStatusLabel.Text =
-                        $"Next enemy in {ticksLeft} " +
-                        $"tick{(ticksLeft == 1 ? "" : "s")}...";
-                });
-
-                await Task.Delay(
-                    GameClock.TickInterval,
-                    token);
-            }
-
-            if (!_autoFightEnabled ||
-                token.IsCancellationRequested ||
-                generation != _autoFightGeneration)
-            {
-                return;
-            }
-
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                if (!_autoFightEnabled ||
-                    token.IsCancellationRequested ||
-                    generation != _autoFightGeneration)
-                {
-                    return;
-                }
-
-                if (EnemySelectionView.IsVisible)
-                    return;
-
-                LootResults.IsVisible = false;
-                LootContainer.Children.Clear();
-
-                StopCombatButton.IsVisible = true;
-                FightAgainButton.IsVisible = false;
-                EnemySelectButton.IsVisible = false;
-
-                AutoFightStatusLabel.Text =
-                    "Fighting...";
-
-                _lastEnemy = enemy;
-
-                _combatManager.ClearAutoFightRespawn();
-
-                UpdateEnemyNameAppearance();
-
-                UpdateEnemyPortraitAppearance();
-
-                ResetDamageBars();
-
-                _combatManager.StartCombat(
-                    enemy,
-                    restorePlayerHealth: false);
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected when Auto Fight is turned off.
-        }
     }
 
     private void OnStopCombatClicked(
