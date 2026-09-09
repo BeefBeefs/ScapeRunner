@@ -435,9 +435,7 @@ public partial class SkillPage : ContentView
         fill = new BoxView
         {
             BackgroundColor = Color.FromArgb("#42A85A"),
-            HorizontalOptions = LayoutOptions.Fill,
-            AnchorX = 0,
-            ScaleX = 0,
+            HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Fill
         };
         track.Children.Add(fill);
@@ -493,7 +491,7 @@ public partial class SkillPage : ContentView
         TimeSpan duration = _activityManager.ActionEnds - _activityManager.ActionStarted;
         if (duration <= TimeSpan.Zero || card.TrainingTrack.Width <= 0)
         {
-            card.TrainingFill.ScaleX = 0;
+            card.TrainingFill.WidthRequest = 0;
             return;
         }
 
@@ -502,8 +500,9 @@ public partial class SkillPage : ContentView
             duration.TotalMilliseconds,
             0,
             1);
-        if (Math.Abs(card.TrainingFill.ScaleX - progress) > 0.001)
-            card.TrainingFill.ScaleX = progress;
+        double fillWidth = card.TrainingTrack.Width * progress;
+        if (Math.Abs(card.TrainingFill.WidthRequest - fillWidth) > 0.5)
+            card.TrainingFill.WidthRequest = fillWidth;
     }
 
     private static async Task PlayActionCompleteFeedbackAsync(ActivityCardUI card)

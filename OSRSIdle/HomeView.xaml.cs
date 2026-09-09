@@ -568,17 +568,17 @@ public partial class HomeView : ContentView
         string? action = await CustomDialogService.ShowAsync(
             "Auto-Equip Best Gear",
             "Choose the bonus to prioritize:",
-            "Attack Bonus",
-            "Defense Bonus",
-            "Strength Bonus",
-            "Overall Bonus");
+            "Attack",
+            "Defense",
+            "Strength",
+            "Overall");
 
         AutoEquipPriority? priority = action switch
         {
-            "Attack Bonus" => AutoEquipPriority.AttackBonus,
-            "Defense Bonus" => AutoEquipPriority.DefenseBonus,
-            "Strength Bonus" => AutoEquipPriority.StrengthBonus,
-            "Overall Bonus" => AutoEquipPriority.OverallBonus,
+            "Attack" => AutoEquipPriority.AttackBonus,
+            "Defense" => AutoEquipPriority.DefenseBonus,
+            "Strength" => AutoEquipPriority.StrengthBonus,
+            "Overall" => AutoEquipPriority.OverallBonus,
             _ => null
         };
 

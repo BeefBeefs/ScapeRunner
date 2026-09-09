@@ -293,7 +293,15 @@ public partial class GamePage : ContentPage
 
         if (combatLoad != null)
         {
-            await RunOfflineCombatSimulationAsync(combatLoad.Value);
+            try
+            {
+                await RunOfflineCombatSimulationAsync(combatLoad.Value);
+            }
+            catch (Exception exception)
+            {
+                RecoverFromOfflineCombatFailure(exception);
+            }
+
             return;
         }
 
@@ -336,19 +344,9 @@ public partial class GamePage : ContentPage
     private async Task RunOfflineCombatSimulationAsync(
         OfflineCombatLoad combatLoad)
     {
-        OfflineCombatSimulation simulation;
-
-        try
-        {
-            simulation = new OfflineCombatSimulation(
-                Player,
-                combatLoad.Activity);
-        }
-        catch
-        {
-            _game.CompleteOfflineCombatSimulation();
-            return;
-        }
+        OfflineCombatSimulation simulation = new(
+            Player,
+            combatLoad.Activity);
 
         OfflineCombatOverlay.IsVisible = true;
         OfflineCombatTitleLabel.Text =
@@ -458,6 +456,74 @@ public partial class GamePage : ContentPage
         {
             _homeView?.SetActive(true);
             _homeView?.RefreshDisplay();
+        }
+    }
+
+    private void RecoverFromOfflineCombatFailure(Exception exception)
+    {
+        System.Diagnostics.Debug.WriteLine(
+            $"Offline combat replay failed during character load: {exception}");
+
+        CancellationTokenSource? cancellation = _offlineCombatCancellation;
+        _offlineCombatCancellation = null;
+
+        try
+        {
+            cancellation?.Cancel();
+        }
+        catch (Exception cancellationException)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Offline combat replay cancellation failed: {cancellationException}");
+        }
+        finally
+        {
+            cancellation?.Dispose();
+        }
+
+        // Clear the replay before returning to the Home page. Otherwise the
+        // same saved combat record would be replayed, and could crash every
+        // subsequent character load.
+        try
+        {
+            _game.CompleteOfflineCombatSimulation();
+        }
+        catch (Exception saveException)
+        {
+            // CompleteOfflineCombatSimulation clears the in-memory replay
+            // before saving. Keep the app usable even if the device rejects
+            // the recovery save; the next normal save can retry it.
+            System.Diagnostics.Debug.WriteLine(
+                $"Offline combat replay recovery save failed: {saveException}");
+        }
+
+        _offlineCombatPlayerDied = false;
+        _offlineAutoFightEnemy = null;
+        _offlineRespawnAccelerationTicks = 0;
+
+        if (_disposed)
+            return;
+
+        try
+        {
+            OfflineCombatOverlay.IsVisible = false;
+            OfflineCombatCancelButton.IsEnabled = false;
+            OfflineCombatCancelButton.IsVisible = false;
+            OfflineCombatContinueButton.IsEnabled = false;
+            _homeView?.SetActive(true);
+            _homeView?.RefreshDisplay();
+
+            _notificationQueue.Enqueue(cancellationToken =>
+                ShowStatusNotificationAsync(
+                    "OFFLINE COMBAT RECOVERED",
+                    "Offline combat could not be replayed. The character was loaded safely and the saved replay was cleared.",
+                    Color.FromArgb("#FFE26A"),
+                    cancellationToken));
+        }
+        catch (Exception uiException)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Offline combat replay recovery UI update failed: {uiException}");
         }
     }
 
