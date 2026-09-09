@@ -382,9 +382,10 @@ public partial class GamePage : ContentPage
 
         await Task.Yield();
 
-        // Run bounded batches away from the UI thread. The previous loop spent
-        // two thirds of its wall time in fixed delays; background batches keep
-        // the dialog responsive while allowing catch-up to run continuously.
+        // Run bounded batches with a yield between them. The simulation writes
+        // shared Player state and raises model events, so keeping each batch on
+        // the MAUI thread avoids races with view callbacks and native handlers
+        // while still allowing the dialog to repaint between batches.
         var displayWatch = System.Diagnostics.Stopwatch.StartNew();
 
         while (simulation.TicksProcessed < combatLoad.Ticks &&
@@ -395,8 +396,7 @@ public partial class GamePage : ContentPage
                 OfflineCombatBatchTicks,
                 combatLoad.Ticks - simulation.TicksProcessed);
 
-            await Task.Run(() =>
-                simulation.Advance(batchTicks, cancellationToken));
+            simulation.Advance(batchTicks, cancellationToken);
 
             if (displayWatch.ElapsedMilliseconds >= 100)
             {
